@@ -32,6 +32,7 @@ NOTIFY_ALLOW_HTTP=0
 - `NOTIFY_MODE=all`：推送后台任务结果、计划触发和定时提醒。
 - `NOTIFY_MODE=off` 或 URL 留空：不自动发送；已经持久排队的记录暂停并保留，**不会自动补齐关闭期间未生成的通知**。
 - Webhook kind 支持 `generic`（`{id,type,text,failed,at}` JSON）与 `feishu`（文本机器人结构），发送时仍带 `X-Pi-Event-ID`。
+- 对 `feishu`，**HTTP 200 不等于真正发送成功**；还检查 JSON 的 `code` 或 `StatusCode` 是否为 0。业务失败保留通知以供重试，避免错误标记 `sent`。
 - 仅当明确设置 `NOTIFY_ALLOW_HTTP=1`（或本地 `NODE_ENV=test`）才允许 HTTP URL；强烈建议生产 HTTPS。
 - 已排队事件记录原有 kind，重启后如切换了通知类型，旧事件会阻断而不是悄悄改成新格式发送，需检查再人工处理。
 - 不会将含密钥的 Webhook URL 保存到 Durable 文档，不在发送失败日志输出它。
