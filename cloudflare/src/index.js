@@ -6,6 +6,7 @@
 import { Agent } from 'agents';
 import { PiHarness } from 'agents/harness/pi';
 import { createModels } from '@earendil-works/pi-ai/models';
+import { DEFAULT_CONFIG, configuredProvider, validateModelConfig, sealKey, openKey } from './model-config.js';
 import { fauxProvider, fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux';
 import { Type } from '@earendil-works/pi-ai';
 import { createRegistry, defineExtension, defineTool, Harness } from '@earendil-works/pi-durable';
@@ -73,17 +74,86 @@ export class Assistant extends Agent {
     registry.install(defineExtension({
       name: 'pi-durable-edge',
       tools: [checkpointWait],
-      sections: [{ key: 'preamble', render: () => '这是 Pi Durable Edge 的免费模拟模式。先使用 checkpoint_wait 工具，随后给出固定的完成提示。', tag: false }],
+      sections: [{ key: 'preamble', render: () => '你是 Pi Durable Edge 助手。使用简体中文，准确、简洁地回答。需要短暂等待时可以使用 checkpoint_wait；不需要等待的普通聊天请直接回答。', tag: false }],
     }));
     this.harness = new PiHarness({
       harness: ({ storage, context }) => {
         const models = createModels();
         models.setProvider(faux.provider);
+        this.models = models;
+        const row = this.readModelRow();
+        if (row) {
+          const config = JSON.parse(row.config);
+          if (config.api !== 'faux') {
+            const configured = configuredProvider(config, () => this.decryptSavedKey());
+            models.setProvider(configured.provider);
+          }
+        }
         return Harness.open(storage, { models, registry }, context);
       },
       defaults: { model: faux.getModel() },
     });
     this.lifecycle.use(this.harness);
+    this.fauxModel = faux.getModel();
+  }
+
+  ensureModelTable() {
+    this.ctx.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS edge_model_settings (id INTEGER PRIMARY KEY CHECK (id = 1), config TEXT NOT NULL, secret TEXT)'
+    );
+  }
+
+  readModelRow() {
+    this.ensureModelTable();
+    return this.ctx.storage.sql.exec('SELECT config, secret FROM edge_model_settings WHERE id = 1').toArray()[0] || null;
+  }
+
+  async decryptSavedKey() {
+    const row = this.readModelRow();
+    if (!row?.secret) throw new Error('未配置模型 API Key');
+    return openKey(row.secret, this.env.ACCESS_TOKEN);
+  }
+
+  async modelSettings() {
+    const row = this.readModelRow();
+    return { ...(row ? JSON.parse(row.config) : DEFAULT_CONFIG), hasKey: Boolean(row?.secret) };
+  }
+
+  async saveModelSettings(raw) {
+    // Never switch providers in the middle of a model call.
+    const pending = await this.harness.pending();
+    if (pending.length) throw new Error('当前还有未完成任务，请完成后再切换模型');
+    const config = validateModelConfig(raw);
+    const old = this.readModelRow();
+    const oldConfig = old ? JSON.parse(old.config) : DEFAULT_CONFIG;
+    let secret = null;
+    if (config.api !== 'faux') {
+      const newKey = typeof raw.apiKey === 'string' ? raw.apiKey.trim() : '';
+      if (newKey) {
+        if (newKey.length < 8 || newKey.length > 8192) throw new Error('API Key 长度需为 8–8192 字符');
+        secret = await sealKey(newKey, this.env.ACCESS_TOKEN);
+      } else if (old?.secret && oldConfig.api === config.api && oldConfig.baseUrl === config.baseUrl) {
+        secret = old.secret;
+      } else {
+        throw new Error('首次配置或更换接口地址时，必须填写 API Key');
+      }
+    }
+    const session = await this.harness.session();
+    if (await session.busy()) throw new Error('Agent 正在执行，请完成后再切换模型');
+    const model = config.api === 'faux'
+      ? this.fauxModel
+      : (() => {
+          const configured = configuredProvider(config, () => this.decryptSavedKey());
+          if (!this.models) throw new Error('模型注册表尚未初始化');
+          this.models.setProvider(configured.provider);
+          return configured.model;
+        })();
+    this.ctx.storage.sql.exec(
+      'INSERT INTO edge_model_settings (id, config, secret) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET config = excluded.config, secret = excluded.secret',
+      JSON.stringify(config), secret
+    );
+    await session.setModel(model);
+    return { ...config, hasKey: Boolean(secret) };
   }
 
   ensureTable() {
@@ -93,7 +163,7 @@ export class Assistant extends Agent {
   }
 
   async startChat(text, operationId) {
-    if (typeof text !== 'string' || text.trim().length < 1 || text.length > 1000) throw new Error('消息长度须为 1–1000 字');
+    if (typeof text !== 'string' || text.trim().length < 1 || text.length > 4000) throw new Error('消息长度须为 1–4000 字');
     if (typeof operationId !== 'string' || !/^[a-zA-Z0-9_-]{8,80}$/.test(operationId)) throw new Error('operationId 格式错误');
     const receipt = await this.harness.submit(text.trim(), { operationId });
     return { operationId: receipt.operationId, accepted: receipt.accepted };
@@ -157,6 +227,15 @@ export default {
     const agent = env.Assistant.getByName('owner');
     try {
       if (request.method === 'GET' && url.pathname === '/api/state') return json(await agent.snapshot());
+      if (request.method === 'GET' && url.pathname === '/api/model') return json(await agent.modelSettings());
+      if (request.method === 'PUT' && url.pathname === '/api/model') {
+        const body = await request.json();
+        try { return json(await agent.saveModelSettings(body)); }
+        catch (error) {
+          console.warn('model settings rejected', error instanceof Error ? error.message : 'unknown');
+          return json({ error: '模型配置失败：' + (error instanceof Error ? error.message : '参数无效') }, 400);
+        }
+      }
       if (request.method === 'POST' && url.pathname === '/api/chat') {
         const body = await request.json();
         return json(await agent.startChat(body?.text, body?.operationId), 202);
