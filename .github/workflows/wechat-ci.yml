@@ -1,0 +1,35 @@
+name: WeChat bridge checks
+
+on:
+  pull_request:
+    paths:
+      - "deploy/wechat/**"
+      - ".github/workflows/wechat-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/wechat/**"
+      - ".github/workflows/wechat-ci.yml"
+  workflow_dispatch:
+
+jobs:
+  go-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Pin and patch wx-bot
+        run: |
+          git clone https://github.com/lawrencewzen/wx-bot.git /tmp/wx-bot
+          git -C /tmp/wx-bot checkout --detach 57ed5f56eedce782e378483f762c7565c45ade5d
+          python3 deploy/wechat/patch_upstream.py /tmp/wx-bot
+      - name: Go test and build
+        working-directory: /tmp/wx-bot
+        run: |
+          go vet ./...
+          go test ./...
+          CGO_ENABLED=0 go build -trimpath -o /tmp/wx-bot-bin ./cmd/wx-bot
+      - name: Compose syntax
+        run: docker compose --profile wechat config --quiet

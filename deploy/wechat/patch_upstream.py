@@ -64,6 +64,20 @@ replace_once("internal/bridge/poller.go",
 \t\t}
 ''')
 replace_once("internal/bridge/poller.go",
+    '''\t\tdelivered := true
+''',
+    '''\t\tif resp.Ret != 0 || resp.ErrCode != 0 {
+\t\t\tlog.Warn("iLink business error; cursor unchanged", "ret", resp.Ret, "errcode", resp.ErrCode)
+\t\t\tselect {
+\t\t\tcase <-time.After(p.retry()):
+\t\t\tcase <-ctx.Done():
+\t\t\t\treturn
+\t\t\t}
+\t\t\tcontinue
+\t\t}
+\t\tdelivered := true
+''')
+replace_once("internal/bridge/poller.go",
     'func (p *Poller) handleMessage(ctx context.Context, msg ilink.IncomingMessage) {',
     'func (p *Poller) handleMessage(ctx context.Context, msg ilink.IncomingMessage) error {')
 before = '''\tif !allowed {
