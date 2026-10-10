@@ -21,7 +21,7 @@ replace_once("internal/ilink/login.go",
     'http.NewRequestWithContext(ctx, http.MethodPost, reqURL, strings.NewReader(`{"local_token_list":[]}`))')
 replace_once("internal/ilink/login.go",
     'AddAppHeaders(req, "")\n\n\tresp, err := l.http().Do(req)',
-    'AddAppHeaders(req, "")\n\treq.Header.Set("Content-Type", "application/json")\n\n\tresp, err := l.http().Do(req)')
+    'AddAppHeaders(req, "")\n\treq.Header.Set("AuthorizationType", "ilink_bot_token")\n\treq.Header.Set("Content-Type", "application/json")\n\n\tresp, err := l.http().Do(req)')
 
 # 只有入站 Webhook 获得成功响应，才推进 getupdates cursor。
 # 若请求失败，重放批次由 Pi Durable 通过 requestId 去重。
