@@ -273,7 +273,7 @@ async function route(req, res) {
   if (method === "GET" && path === "/api/foundation/actions") {
     return sendJson(res, 200, { actions: await actionService.list() });
   }
-  const actionRoute = path.match(/^\\/api\\/foundation\\/actions\\/([0-9a-f-]+)(?:\\/(approve|reject))?$/);
+  const actionRoute = path.match(new RegExp("^/api/foundation/actions/([0-9a-f-]+)(?:/(approve|reject))?$"));
   if (actionRoute) {
     const [, id, decision] = actionRoute;
     if (method === "GET" && !decision) {
