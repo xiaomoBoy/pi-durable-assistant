@@ -32,6 +32,19 @@
 - 微信消息走独立的 Bearer Auth Webhook，原有管理界面仍使用 Basic Auth。通过 `GET /api/wechat/status` 查看通道状态。
 - 当前只保证文本和语音转写文本链路；媒体附件仅占位提示，不做虚假的“已读取”分析。iLink 消息策略/限流和扫码能否成功需用真实微信验证。发出成功、标记已发送之前发生崩溃可能重复投递。
 
+## 基座加固 F1/F2：独立工作区和审批式写入（待验收）
+
+可选启用受控文件工作区，在已有任务中心查看文件、下载成果、审核写入。**默认关闭。**
+
+```dotenv
+WORKSPACE_ENABLED=1
+WORKSPACE_ROOT=/workspace
+```
+
+Docker Compose 会创建独立命名卷 `pi-durable-demo-workspace`，**不要**用 Obsidian、VPS 主目录、SSH 或密钥目录替换这个挂载。文件只支持 md、txt、json、csv，单文件最多 128KB；Agent 可以列出和读取，但写入只生成待审批请求，必须在网页右下角「任务中心 → 文件写入审批」完整查看并批准后才会落盘。拒绝路径穿越和符号链接，**没有提供 shell 执行**。
+
+查看 `GET /api/foundation/status`、`/api/foundation/actions`；文件下载从 `GET /api/workspace/download?name=...` 获取，仍使用现有 Basic Auth。离线复测见 [六项基座加固计划](docs/FOUNDATION_ROADMAP.md)。外部通知可靠 Outbox、完整 Artifact 元数据、模型成本及备份恢复仍属于后续独立阶段，不能因本项完成而认为已实现。
+
 ## 一、本地启动
 
 需要 **Node.js ≥ 22.13**。先用无需 API Key 的 `faux` 模式确认基础功能：

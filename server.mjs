@@ -3,12 +3,15 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { timingSafeEqual } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
-import { config, Delegations, Index, Meta, Notes, openAgent, Reminders } from "./lib/agent.mjs";
+import { config, Delegations, Index, Meta, Notes, openAgent, Reminders, workspace } from "./lib/agent.mjs";
 import { Schedules, BackgroundJobs, Parents, scheduleInTx, manageScheduleInTx, backgroundInTx } from "./lib/v3.mjs";
 import { WechatChannel } from "./lib/wechat.mjs";
+import { ActionService } from "./lib/actions.mjs";
 
 const { harness, root, agentModel, modelLabel } = await openAgent(ctx);
 const startedAt = new Date().toISOString();
+const actionService = new ActionService({ root, harness, context: ctx, workspace });
+actionService.start();
 const wechatEnabled = process.env.WECHAT_ENABLED === "1";
 if (wechatEnabled && (!process.env.WECHAT_WEBHOOK_KEY || !process.env.WECHAT_SEND_TOKEN)) {
   throw new Error("微信启用时必须设置 WECHAT_WEBHOOK_KEY 和 WECHAT_SEND_TOKEN");
@@ -259,7 +262,46 @@ async function route(req, res) {
 		res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
 		return res.end(await readFile(new URL("./public/v3.js", import.meta.url)));
 	}
-	if (method === "GET" && path === "/api/wechat/status") {
+	if (method === "GET" && path === "/api/foundation/status") {
+    return sendJson(res, 200, { workspace: { enabled: workspace.enabled },
+      approvals: { pending: (await actionService.list()).filter(x => x.state === "pending").length } });
+  }
+  if (method === "POST" && path === "/api/foundation/actions") {
+    try { return sendJson(res, 201, { action: await actionService.propose(await readBody(req)) }); }
+    catch (error) { throw new HttpError(400, error.message); }
+  }
+  if (method === "GET" && path === "/api/foundation/actions") {
+    return sendJson(res, 200, { actions: await actionService.list() });
+  }
+  const actionRoute = path.match(/^\\/api\\/foundation\\/actions\\/([0-9a-f-]+)(?:\\/(approve|reject))?$/);
+  if (actionRoute) {
+    const [, id, decision] = actionRoute;
+    if (method === "GET" && !decision) {
+      try { return sendJson(res, 200, { action: await actionService.detail(id) }); }
+      catch { throw new HttpError(404, "审批单不存在"); }
+    }
+    if (method === "POST" && decision) {
+      try {
+        const item = await actionService.decide(id, decision);
+        return sendJson(res, 200, { item });
+      } catch (error) { throw new HttpError(/不存在/.test(error.message) ? 404 : 409, error.message); }
+    }
+  }
+  if (method === "GET" && path === "/api/workspace/files") {
+    if (!workspace.enabled) throw new HttpError(503, "工作区未启用");
+    return sendJson(res, 200, { files: await workspace.list() });
+  }
+  if (method === "GET" && path === "/api/workspace/download") {
+    if (!workspace.enabled) throw new HttpError(503, "工作区未启用");
+    let file;
+    try { file = await workspace.read(url.searchParams.get("name") || ""); }
+    catch { throw new HttpError(404, "文件不存在或无权限"); }
+    const name = file.name.split("/").at(-1).replace(/[^A-Za-z0-9._-]/g, "_");
+    res.writeHead(200, { "content-type": "application/octet-stream", "x-content-type-options": "nosniff",
+      "content-disposition": 'attachment; filename="' + name + '"', "cache-control": "no-store" });
+    return res.end(file.content);
+  }
+  if (method === "GET" && path === "/api/wechat/status") {
     return sendJson(res, 200, wechat ? await wechat.status() : { enabled: false });
   }
   if (method === "GET" && path === "/api/info") {

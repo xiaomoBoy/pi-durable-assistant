@@ -1,7 +1,7 @@
 // 管理页面独立加载，不依赖既有前端的内部状态。
 (() => {
   const sheet = document.createElement("style");
-  sheet.textContent = "/* v3 管理侧栏：独立于旧版单文件前端，移动端也可操作。 */\n#v3-toggle{position:fixed;right:22px;bottom:22px;z-index:2500;background:#4338ca;color:white;border:0;border-radius:999px;padding:12px 18px;box-shadow:0 6px 24px #1113;cursor:pointer}\n#v3-drawer{position:fixed;z-index:2501;right:16px;bottom:72px;top:16px;width:min(420px,calc(100vw - 32px));background:var(--bg-surface,#fff);color:var(--text-main,#111);border:1px solid var(--border,#ddd);box-shadow:0 18px 48px #0003;border-radius:16px;padding:18px;overflow:auto;font-size:14px}\n#v3-drawer[hidden]{display:none}\n#v3-drawer h2{font-size:18px;margin:0}\n#v3-drawer h3{font-size:14px;margin:18px 0 10px}\n#v3-drawer .v3-head{display:flex;align-items:center;justify-content:space-between}\n#v3-drawer form{display:grid;gap:8px}\n#v3-drawer label{display:grid;gap:4px;color:var(--text-muted,#666)}\n#v3-drawer input,#v3-drawer textarea{background:var(--bg-input,#fff);color:var(--text-main,#111);border:1px solid var(--border,#ddd);border-radius:8px;padding:9px;width:100%}\n#v3-drawer textarea{min-height:72px;resize:vertical}\n#v3-drawer button{border:1px solid var(--border,#ddd);background:var(--bg-subtle,#f6f6f6);color:var(--text-main,#111);border-radius:8px;padding:7px 10px;cursor:pointer}\n#v3-drawer button.v3-primary{background:#4338ca;color:#fff;border:0}\n#v3-drawer button:disabled{opacity:.5;cursor:default}\n#v3-drawer .v3-row{padding:9px 0;border-bottom:1px solid var(--border,#ddd)}\n#v3-drawer .v3-row p{margin:5px 0;overflow-wrap:anywhere}\n#v3-drawer .v3-actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}\n#v3-drawer .v3-muted{font-size:12px;color:var(--text-muted,#666)}\n#v3-drawer .v3-status{font-size:12px;color:var(--primary,#4338ca)}\n#v3-drawer .v3-duo{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#v3-feedback{min-height:20px;color:var(--text-muted,#666)}\n@media(max-width:600px){#v3-drawer{top:8px;right:8px;bottom:8px;width:calc(100vw - 16px)}#v3-toggle{bottom:14px;right:14px}}";
+  sheet.textContent = "/* v3 管理侧栏：独立于旧版单文件前端，移动端也可操作。 */\n#v3-toggle{position:fixed;right:22px;bottom:22px;z-index:2500;background:#4338ca;color:white;border:0;border-radius:999px;padding:12px 18px;box-shadow:0 6px 24px #1113;cursor:pointer}\n#v3-drawer{position:fixed;z-index:2501;right:16px;bottom:72px;top:16px;width:min(420px,calc(100vw - 32px));background:var(--bg-surface,#fff);color:var(--text-main,#111);border:1px solid var(--border,#ddd);box-shadow:0 18px 48px #0003;border-radius:16px;padding:18px;overflow:auto;font-size:14px}\n#v3-drawer[hidden]{display:none}\n#v3-drawer h2{font-size:18px;margin:0}\n#v3-drawer h3{font-size:14px;margin:18px 0 10px}\n#v3-drawer .v3-head{display:flex;align-items:center;justify-content:space-between}\n#v3-drawer form{display:grid;gap:8px}\n#v3-drawer label{display:grid;gap:4px;color:var(--text-muted,#666)}\n#v3-drawer input,#v3-drawer textarea{background:var(--bg-input,#fff);color:var(--text-main,#111);border:1px solid var(--border,#ddd);border-radius:8px;padding:9px;width:100%}\n#v3-drawer textarea{min-height:72px;resize:vertical}\n#v3-drawer button{border:1px solid var(--border,#ddd);background:var(--bg-subtle,#f6f6f6);color:var(--text-main,#111);border-radius:8px;padding:7px 10px;cursor:pointer}\n#v3-drawer button.v3-primary{background:#4338ca;color:#fff;border:0}\n#v3-drawer button:disabled{opacity:.5;cursor:default}\n#v3-drawer .v3-row{padding:9px 0;border-bottom:1px solid var(--border,#ddd)}\n#v3-drawer .v3-row p{margin:5px 0;overflow-wrap:anywhere}\n#v3-drawer .v3-actions{display:flex;flex-wrap:wrap;gap:7px;align-items:center}\n#v3-drawer .v3-muted{font-size:12px;color:var(--text-muted,#666)}\n#v3-drawer .v3-status{font-size:12px;color:var(--primary,#4338ca)}\n#v3-drawer .v3-duo{display:grid;grid-template-columns:1fr 1fr;gap:8px}\n#v3-drawer pre.v3-preview{white-space:pre-wrap;overflow:auto;max-height:260px;background:var(--bg-subtle,#f6f6f6);border-radius:8px;padding:10px;font-size:12px}\n#v3-feedback{min-height:20px;color:var(--text-muted,#666)}\n@media(max-width:600px){#v3-drawer{top:8px;right:8px;bottom:8px;width:calc(100vw - 16px)}#v3-toggle{bottom:14px;right:14px}}";
   document.head.appendChild(sheet);
   const toggle = document.createElement("button");
   toggle.id = "v3-toggle";
@@ -28,6 +28,8 @@
     '<h3>计划任务</h3><div id="v3-schedules"></div>',
     '<h3>提醒</h3><div id="v3-reminders"></div>',
     '<h3>后台子 Agent</h3><div id="v3-background"></div>',
+    '<h3>文件写入审批</h3><p class="v3-muted">仅批准可写工作区内的文件，绝不执行命令。审批前先查看完整内容。</p><div id="v3-approvals"></div>',
+    '<h3>工作区文件</h3><div id="v3-files"></div>',
     '<p class="v3-muted">执行采用持久化检查点；周期按固定分钟间隔重复。修改与暂停不会自动清理旧的睡眠任务，但会阻止其过期触发。</p>',
   ].join("");
   document.body.append(toggle, panel);
@@ -76,7 +78,12 @@
     $("v3-export").disabled = !id;
     if (!id || panel.hidden) return;
     try {
-      const data = await request("/api/conversations/" + id + "/management");
+      const [data, actionData, fileData] = await Promise.all([
+        request("/api/conversations/" + id + "/management"),
+        request("/api/foundation/actions"),
+        request("/api/foundation/status").then(x => x.workspace.enabled ?
+          request("/api/workspace/files") : { files: [] }),
+      ]);
       if (sequence !== latestRefresh || currentId() !== id || panel.hidden) return;
       const schedules = $("v3-schedules"); schedules.replaceChildren();
       for (const item of data.schedules || []) {
@@ -110,6 +117,42 @@
         row.append(actions); background.append(row);
       }
       if (!background.childElementCount) background.append(el("p", "暂无后台任务", "v3-muted"));
+
+      const approvals = $("v3-approvals"); approvals.replaceChildren();
+      for (const item of (actionData.actions || []).filter(x => x.state === "pending").slice(-15).reverse()) {
+        const row = el("div", "", "v3-row");
+        row.append(el("p", item.name), el("p", item.bytes + " 字节 · " + (item.overwrite ? "请求覆盖" : "新增文件"), "v3-muted"));
+        addButton(row, "查看内容并决定", async () => {
+          try {
+            const data = await request("/api/foundation/actions/" + item.id);
+            const detail = data.action;
+            const old = row.querySelector(".v3-preview"); if (old) old.remove();
+            const preview = el("pre", detail.content, "v3-preview");
+            row.append(preview);
+            if (!row.querySelector(".v3-decision")) {
+              const actions = el("div", "", "v3-actions v3-decision");
+              addButton(actions, "批准写入", () => {
+                if (!confirm("确认将文件写入工作区：" + detail.name + "？")) return;
+                run(() => request("/api/foundation/actions/" + item.id + "/approve", {}));
+              });
+              addButton(actions, "拒绝", () => run(() => request("/api/foundation/actions/" + item.id + "/reject", {})));
+              row.append(actions);
+            }
+          } catch (e) { say("审批读取失败：" + e.message); }
+        });
+        approvals.append(row);
+      }
+      if (!approvals.childElementCount) approvals.append(el("p", "暂无待审批写入", "v3-muted"));
+      const files = $("v3-files"); files.replaceChildren();
+      for (const name of (fileData.files || []).slice(0, 40)) {
+        const row = el("div", "", "v3-row");
+        row.append(el("span", name, "v3-muted"));
+        addButton(row, "下载", () => {
+          const a = document.createElement("a"); a.href = "/api/workspace/download?name=" + encodeURIComponent(name); a.click();
+        });
+        files.append(row);
+      }
+      if (!files.childElementCount) files.append(el("p", "暂无工作区文件，或尚未启用工作区", "v3-muted"));
     } catch (e) { if (sequence === latestRefresh && currentId() === id && !panel.hidden) say("读取任务失败：" + e.message); }
   }
   function open(state) {

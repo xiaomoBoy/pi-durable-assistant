@@ -13,6 +13,7 @@ services:
       - "127.0.0.1:${HOST_PORT:-3300}:3000"
     volumes:
       - pi-durable-demo-data:/data
+      - pi-durable-demo-workspace:/workspace
     mem_limit: 1g
     cpus: 1.0
     read_only: true
@@ -49,3 +50,4 @@ volumes:
   wx-bot-state:
   wx-bot-media:
   pi-durable-demo-data:
+  pi-durable-demo-workspace:
