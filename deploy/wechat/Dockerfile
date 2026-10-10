@@ -15,6 +15,7 @@ RUN apk add --no-cache ca-certificates && \
     addgroup -S bot && adduser -S -G bot bot && \
     mkdir -p /state /media && chown -R bot:bot /state /media
 COPY --from=build /out/wx-bot /usr/local/bin/wx-bot
+COPY --from=build /src/LICENSE /licenses/wx-bot-LICENSE
 COPY deploy/wechat/config.json /etc/wx-bot/config.json
 USER bot
 ENTRYPOINT ["wx-bot"]

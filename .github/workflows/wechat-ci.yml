@@ -35,3 +35,5 @@ jobs:
         run: |
           cp .env.example .env
           docker compose --profile wechat config --quiet
+      - name: Build wx-bot Docker image
+        run: docker compose --profile wechat build wx-bot
