@@ -11,10 +11,10 @@
     h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.045em;margin:7px 0 10px}p{color:#667080;line-height:1.65;margin:0 0 20px}
     .panel{background:#fff;border:1px solid #e5e8ee;border-radius:16px;padding:22px;margin:14px 0;box-shadow:0 7px 28px rgba(27,35,52,.035)}
     h2{font-size:15px;margin:0 0 15px}.muted{color:#6b7483;font-size:13px}.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
-    input,button{font:inherit;border-radius:9px;padding:10px 13px}input{border:1px solid #dadee7;min-width:0;flex:1}button{border:1px solid #dedfea;background:#fff;cursor:pointer;color:#253049}button.primary{background:#36334f;color:white;border-color:#36334f}button:disabled{opacity:.5;cursor:not-allowed}
+    input,button,select,textarea{font:inherit;border-radius:9px;padding:10px 13px}input,select,textarea{border:1px solid #dadee7;min-width:0;flex:1;background:#fff}textarea{resize:vertical;min-height:82px;width:100%}button{border:1px solid #dedfea;background:#fff;cursor:pointer;color:#253049}button.primary{background:#36334f;color:white;border-color:#36334f}button:disabled{opacity:.5;cursor:not-allowed}
     .messages{min-height:140px;max-height:310px;overflow-y:auto;padding:4px 0;display:grid;align-content:start;gap:9px}.bubble{padding:12px 14px;border-radius:12px;background:#f2f2f7;font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.bubble.user{background:#e9edf9}.label{font-size:11px;color:#758095;display:block;margin-bottom:5px}
     .notice{padding:12px;border:1px dashed #d8d4ea;border-radius:10px;background:#faf9ff;color:#595d75;font-size:13px}
-    .reminder{padding:10px 0;border-bottom:1px solid #eee;font-size:13px}.reminder:last-child{border:0}.tag{display:inline-block;padding:3px 7px;border-radius:6px;background:#eef3fb;margin-left:6px;font-size:11px}
+    form.settings{display:grid;gap:12px}.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:6px;min-width:0}.field label{font-size:12px;color:#667080;font-weight:600}.field input,.field select{width:100%}.full{grid-column:1/-1}.settings-note{font-size:12px;color:#788397;line-height:1.6}@media(max-width:640px){.settings-grid{grid-template-columns:1fr}}.reminder{padding:10px 0;border-bottom:1px solid #eee;font-size:13px}.reminder:last-child{border:0}.tag{display:inline-block;padding:3px 7px;border-radius:6px;background:#eef3fb;margin-left:6px;font-size:11px}
     #feedback{margin-top:12px;font-size:13px;color:#6b7483;min-height:20px}code{background:#f0f0f5;padding:1px 4px;border-radius:4px}footer{font-size:12px;color:#89909f;margin-top:20px}
   </style>
   <script type="module" src="/app.js"></script>
@@ -23,7 +23,7 @@
   <main>
     <div class="eyebrow">PI DURABLE / CLOUDFLARE</div>
     <h1>Pi Durable Edge</h1>
-    <p>构建在 Cloudflare 上的持久化 Pi Agent。当前初始版本使用 faux 模型，无付费 Token；聊天任务和定时提醒由 Durable Objects 保存。</p>
+    <p>构建在 Cloudflare 上的持久化 Pi Agent。支持 faux 免费测试，以及 OpenAI / Anthropic 兼容模型 API。聊天、提醒和配置保存在 Durable Object。</p>
     <section class="panel">
       <h2>访问令牌</h2>
       <div class="controls"><input id="token" type="password" placeholder="部署时配置的 ACCESS_TOKEN" autocomplete="off"><button id="connect" class="primary">连接</button><button id="selfcheck" disabled>一键功能自检</button></div>
@@ -31,10 +31,34 @@
       <div class="muted" id="selfcheck-result" aria-live="polite">连接后可以一键验证对话、幂等提交、持久化和提醒触发（不包含模拟崩溃）。</div>
     </section>
     <section class="panel">
-      <h2>① 模拟对话 / 持久化任务</h2>
-      <div class="notice">发送后立即返回操作 ID，后台进入 12 秒等待任务。可以刷新页面再查看历史。刷新网页只验证前端重连；验证真正的实例中断，需要在任务期间重新部署 Worker。</div>
+      <h2>模型设置 <span id="model-status" class="tag">faux · 免费模拟</span></h2>
+      <form class="settings" id="model-form">
+        <div class="settings-grid">
+          <div class="field"><label for="model-api">接口协议</label>
+            <select id="model-api">
+              <option value="faux">Faux（免费模拟，不调用模型）</option>
+              <option value="openai-completions">OpenAI · Chat Completions</option>
+              <option value="openai-responses">OpenAI · Responses</option>
+              <option value="anthropic-messages">Anthropic · Messages</option>
+            </select>
+          </div>
+          <div class="field"><label for="model-id">模型 ID</label><input id="model-id" placeholder="如 gpt-4.1-mini / claude-sonnet-4-5" maxlength="160" autocomplete="off"></div>
+          <div class="field full"><label for="model-url">Base URL（HTTPS）</label><input id="model-url" type="url" placeholder="https://api.openai.com/v1" maxlength="500" autocomplete="url"></div>
+          <div class="field full"><label for="model-key">API Key（留空则保留当前密钥）</label><input id="model-key" type="password" placeholder="只发送到 Worker 服务端加密保存" autocomplete="new-password"></div>
+          <div class="field"><label for="model-context">上下文窗口（Token）</label><input id="model-context" type="number" min="4096" max="2000000" value="128000"></div>
+          <div class="field"><label for="model-max">最大输出（Token）</label><input id="model-max" type="number" min="128" max="2000000" value="8192"></div>
+          <div class="field full"><label><input type="checkbox" id="model-reasoning" style="flex:0"> 支持推理 / Thinking</label></div>
+        </div>
+        <div class="settings-note">API Key 在 Worker 端使用 AES-GCM 加密保存，页面不会显示已保存的明文。更换协议或 Base URL 时必须重新填写 Key；更换 ACCESS_TOKEN 后需重新配置 API Key。仅使用你信任的 HTTPS 服务地址。模型 API 可能产生费用。</div>
+        <div class="controls"><button id="model-save" class="primary" type="submit">保存并启用模型</button><button id="model-reload" type="button">重新载入配置</button></div>
+        <div id="model-feedback" class="muted" aria-live="polite">连接后读取模型配置。</div>
+      </form>
+    </section>
+    <section class="panel">
+      <h2>① 聊天 / 持久化任务</h2>
+      <div class="notice" id="chat-description">Faux 模式：发送后执行 12 秒等待，使用固定回复验证任务恢复。切换到真实 API 后，聊天将交由所选模型回答；模型请求可能产生费用。</div>
       <div class="messages" id="messages" aria-live="polite"></div>
-      <div class="controls"><input id="prompt" maxlength="1000" placeholder="例如：执行一次断点恢复演示"><button id="send" class="primary">运行任务</button><button id="refresh">刷新状态</button></div>
+      <textarea id="prompt" maxlength="4000" rows="3" placeholder="输入聊天内容。Enter 发送，Shift+Enter 换行。"></textarea><div class="controls" style="margin-top:10px"><button id="send" class="primary">发送消息</button><button id="refresh">刷新状态</button></div>
       <div id="pending" class="muted" style="padding-top:8px"></div>
     </section>
     <section class="panel">
@@ -42,7 +66,7 @@
       <div class="controls"><input id="reminder-text" maxlength="200" placeholder="到点后显示的提醒内容"><input id="seconds" type="number" min="5" max="3600" value="10" style="max-width:110px"><button id="remind" class="primary">创建提醒</button></div>
       <div id="reminders" style="margin-top:12px" class="muted">暂无提醒。</div>
     </section>
-    <footer>单用户初始版本 · Faux 并非通用 AI 模型 · 提醒完成状态保存在 SQLite 中，当前不发送手机通知</footer>
+    <footer>Pi Durable Edge v0.2 · 单用户 · 密钥仅在服务端解密 · 可使用真实模型（费用由 API 提供商收取） · 当前提醒不发送手机通知</footer>
   </main>
 </body>
 </html>
