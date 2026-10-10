@@ -1,17 +1,25 @@
 # Pi Durable Edge
 
+> **v0.2 开发中**：增加 OpenAI / Anthropic 模型配置与真实聊天。Cloudflare 真实部署尚未验收。部署按钮仍指向 main 初始稳定版，不会自动部署此开发分支。
+
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/xiaomoBoy/pi-durable-assistant/tree/main/cloudflare)
 
 **[中文一键部署教程（零命令行）→](docs/DEPLOY.md)** · [Cloudflare 官方部署按钮说明](https://developers.cloudflare.com/workers/platform/deploy-buttons/)
 
-> 原项目：[xiaomoBoy/pi-durable-assistant](https://github.com/xiaomoBoy/pi-durable-assistant)。Pi Durable Edge 是原项目的 Cloudflare Workers 版本，不影响原项目的 Docker / VPS 部署。**当前处于 v0.1 初始开发阶段，计划持续迭代；尚未在真实 Cloudflare 账户验证运行，Beta 兼容性以部署日志为准。**
+> 原项目：[xiaomoBoy/pi-durable-assistant](https://github.com/xiaomoBoy/pi-durable-assistant)。Pi Durable Edge 是原项目的 Cloudflare Workers 版本，不影响原项目的 Docker / VPS 部署。**v0.2 为开发版本，尚需真实 Cloudflare 运行验证。**
 
-## 当前版本范围和原理
+## v0.2 版本范围和原理
 
 - **真实 Pi Durable 1.1.0 + Cloudflare PiHarness**：从原项目移植 `faux` 剧本和 `wait_seconds` 记忆截止时间的策略。每条消息创建 Durable operation，Pi 的 transcript、任务及检查点存在 SQLite-backed Durable Object 中。
-- **模拟回复（零模型费用）**：`faux` 不是通用 AI，所有输入都执行 12 秒等待，最后输出固定中文提示。不接外部 API，也不需要 Workers AI。
+- **模型配置中心**：支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages；自定义 HTTPS Base URL、模型 ID、上下文窗口、最大输出 Token、推理能力标记和 API Key。密钥 AES-GCM 加密保存，不通过 GET API 返回。
+- **真实聊天**：模型调用仍由 PiHarness `submit()` 和持久化 Session 管理。真实 API 按模型服务商计费。
+- **模拟回复（零模型费用）**：Faux 保留，12 秒等待后返回固定提示，不调用外部模型。
 - **持久定时提醒**：使用 Agents SDK `schedule()` 和 SQLite `edge_reminders` 表，实例未活跃时由 Alarms 唤醒。只在网页显示提醒是否触发，**不发送手机推送**。
-- **隔离**：当前初始版本为单用户、单 Durable Object；多会话、微信桥、Subagent、生产模型、上传附件及多租户暂未实现。
+- **隔离**：当前单用户、单 Durable Object；多会话、微信桥、Subagent、附件和多租户暂未实现。
+
+## v0.2 开发任务与验收
+
+参见 [v0.2 任务拆解、验收标准与后续路线图](docs/V02_PLAN.md)。本分支功能已提交，仍需 Cloudflare Free 账户与真实模型端到端验收。
 
 ## 一键部署
 
@@ -47,12 +55,14 @@ npm run dev
 ## API（必须发送 `Authorization: Bearer <ACCESS_TOKEN>`）
 
 - `GET /api/state`：对话、未完成任务、提醒状态。
+- `GET /api/model`：读取模型配置元信息与 `hasKey`，不返回明文密钥。
+- `PUT /api/model`：保存并切换模型；更换协议或 Base URL 时需重新填写 API Key。
 - `POST /api/chat`：`{ "text": "测试恢复", "operationId": "客户端唯一随机ID" }`；同 ID 重试幂等。
 - `POST /api/reminders`：`{ "text": "站起来", "seconds": 10 }`。
 
 ## 费用与安全
 
-- 不调用任何真实 AI 模型：模型费 **$0**；不用 Containers、不需要 Workers Paid。
+- Faux 模型费 **$0**；真实 OpenAI、Anthropic 或第三方兼容 API 按其服务商计费。无需 Containers 或 Workers Paid。
 - 平台预计在低频测试的免费额度内，但 **真实远程部署尚未验收**；参考 [Durable Objects 定价](https://developers.cloudflare.com/durable-objects/platform/pricing/) 与 [PiHarness 文档](https://developers.cloudflare.com/agents/harnesses/pi/)。
 - Worker 默认公开静态页面，API 必须使用 Cloudflare 侧 `ACCESS_TOKEN` Secret。建议另外设置 Cloudflare Access；当前版本不适合存储机密内容，也没有账号系统和细粒度限流。
 - API 返回和状态不会暴露 Token。浏览器令牌仅存储于当前标签页的 `sessionStorage`，不作为 URL 参数。
@@ -60,10 +70,10 @@ npm run dev
 
 ## 后续方向
 
-后续可逐步增加真实模型、多会话、子 Agent、持久通知和微信桥接，不牺牲现有 Pi Durable 的恢复语义；所有功能以实际合并、测试通过的版本为准。
+后续可增加多模型 Profile、多会话、子 Agent、持久通知和微信桥接，不牺牲现有 Pi Durable 的恢复语义；所有功能以实际合并、测试通过的版本为准。
 
 ## 兼容性与版本
 
 从原项目 `main`（Node.js 22、Pi Durable 1.1.0）抽取最小功能。锁定 `agents@0.28.0`、`@earendil-works/pi-durable@1.1.0` 和 `@earendil-works/pi-ai@1.1.0`。PiHarness 仍在 Beta 阶段，未来升级应先在测试环境验证。
 
-尚未实施完整的 npm 依赖安装和 Cloudflare 真正部署测试；已进行 Node 语法检查。若部署失败，先查看 Worker build logs，不应宣称已完成线上验收。
+CI 包含依赖安装、Node 单元测试和 Wrangler dry-run；Cloudflare 真实部署与模型 API 尚未端到端验证。若部署失败，请检查 Worker Build/Runtime logs。
