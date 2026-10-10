@@ -32,6 +32,15 @@
 - 微信消息走独立的 Bearer Auth Webhook，原有管理界面仍使用 Basic Auth。通过 `GET /api/wechat/status` 查看通道状态。
 - 当前只保证文本和语音转写文本链路；媒体附件仅占位提示，不做虚假的“已读取”分析。iLink 消息策略/限流和扫码能否成功需用真实微信验证。发出成功、标记已发送之前发生崩溃可能重复投递。
 
+## Obsidian 本地只读检索（v4 第 1 项，待用户验收）
+
+Agent 已接入 `search_knowledge`、`read_knowledge` 两个只读工具，网页及微信会话可按授权范围检索 Obsidian Markdown，并返回文件路径、来源行号和状态。**默认关闭**，不配置不会扫描私人资料；登录微信不代表拥有整库访问权限。
+
+- 默认只读三个内容目录：`AI学习/`、`X灵感/`、`VPS小白教程/`；个人档案、财务及服务器资料默认完全不可检索。
+- 把你自己维护的私有 Obsidian 仓库副本从 VPS 宿主机通过 `compose.knowledge.yaml` 只读挂载，不在 Agent 内存 GitHub 密钥、不自动改写知识库。
+- 可用 `GET /api/knowledge/status`、`/api/knowledge/search?q=Pi`、`/api/knowledge/read?path=...` 进行独立验收；真实模型才会自主调用 Agent 检索工具，`faux` 演示模式不会。
+- **详见 [v4 分阶段计划](docs/V4_ROADMAP.md) 与 [FR-01 部署验收手册](docs/KNOWLEDGE_FR01_ACCEPTANCE.md)**。FR-02～05 尚未实现。
+
 ## 一、本地启动
 
 需要 **Node.js ≥ 22.13**。先用无需 API Key 的 `faux` 模式确认基础功能：

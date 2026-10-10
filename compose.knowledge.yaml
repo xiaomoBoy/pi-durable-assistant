@@ -1,0 +1,10 @@
+# 启用 FR-01 时叠加此文件；默认 compose 不挂载任何个人知识库。
+services:
+  pi-durable-demo:
+    volumes:
+      - type: bind
+        source: ${OBSIDIAN_HOST_PATH:?请先在 .env 设置 OBSIDIAN_HOST_PATH 为本机私有 Obsidian 仓库的绝对路径}
+        target: /obsidian
+        read_only: true
+        bind:
+          create_host_path: false

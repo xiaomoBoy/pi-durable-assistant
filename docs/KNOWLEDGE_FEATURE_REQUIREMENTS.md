@@ -1,6 +1,6 @@
-# v4 知识库驱动的个人 Agent：候选功能需求
+# v4 知识库驱动的个人 Agent：五项需求规格
 
-> 状态：需求草案，**尚未实现**。基于 2026-10-10 对私有 Obsidian `xiaomoBoy/Obsidian` 的目录与重点文件抽查形成。这里定义的是 **Pi Durable 产品功能**，而不是要求增加五类 Obsidian 笔记。实施须沿用现有单用户、SQLite、原生 ESM 和 Durable Runtime；微信只是可选的输入/输出 Channel。
+> 状态：需求已确认按序实施；**仅 FR-01 进入开发与验收，FR-02～05 未实现**。基于 2026-10-10 对私有 Obsidian `xiaomoBoy/Obsidian` 的目录与重点文件抽查形成。这里定义的是 **Pi Durable 产品功能**，而不是要求增加五类 Obsidian 笔记。实施须沿用现有单用户、SQLite、原生 ESM 和 Durable Runtime；微信只是可选的输入/输出 Channel。
 
 ## 产品目标与边界
 
@@ -112,4 +112,4 @@ Obsidian 已是个人事实/策略的权威来源，不在 Pi Durable 再建第�
 2. 微信上说“记一下：微信 Channel 要和 Durable Runtime 解耦”，产生一个待确认项；网页端审核后再写到规则允许的位置。
 3. 重启 Pi Durable 并重复发送消息：候选不重建两条，历史查询和记录都保留。
 
-首轮只验收 FR-01 / FR-02；FR-03～05 保留为设计需求，不预先创造维护成本。
+每轮只验收一项。本轮 FR-01；用户验收通过以后才开始 FR-02。FR-03～05 保留为设计需求，不预先创造维护成本。

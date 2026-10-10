@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { timingSafeEqual } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
-import { config, Delegations, Index, Meta, Notes, openAgent, Reminders } from "./lib/agent.mjs";
+import { config, Delegations, Index, Meta, Notes, openAgent, Reminders, knowledge } from "./lib/agent.mjs";
 import { Schedules, BackgroundJobs, Parents, scheduleInTx, manageScheduleInTx, backgroundInTx } from "./lib/v3.mjs";
 import { WechatChannel } from "./lib/wechat.mjs";
 
@@ -259,7 +259,39 @@ async function route(req, res) {
 		res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
 		return res.end(await readFile(new URL("./public/v3.js", import.meta.url)));
 	}
-	if (method === "GET" && path === "/api/wechat/status") {
+	// FR-01：确定性验收接口；仍受网页版 Basic Auth 保护，默认无知识库授权。
+  if (method === "GET" && path === "/api/knowledge/status") {
+    try { return sendJson(res, 200, await knowledge.status()); }
+    catch (error) { return sendJson(res, 503, { error: "知识库不可用：请检查只读挂载" }); }
+  }
+  if (method === "GET" && path === "/api/knowledge/search") {
+    if (!knowledge.enabled) return sendJson(res, 503, { error: "未配置 OBSIDIAN_ROOT" });
+    try {
+      const result = await knowledge.search(url.searchParams.get("q") || "", {
+        includeHistorical: url.searchParams.get("history") === "1",
+      });
+      return sendJson(res, 200, result);
+    } catch (error) {
+      const input = /查询词/.test(error?.message || "");
+      return sendJson(res, input ? 400 : 503, { error: input ? error.message : "知识库不可用：请检查只读挂载" });
+    }
+  }
+  if (method === "GET" && path === "/api/knowledge/read") {
+    if (!knowledge.enabled) return sendJson(res, 503, { error: "未配置 OBSIDIAN_ROOT" });
+    try {
+      const result = await knowledge.read(url.searchParams.get("path") || "", {
+        startLine: Number(url.searchParams.get("line") || 1),
+      });
+      return sendJson(res, 200, result);
+    } catch (error) {
+      const denied = /无效的知识库路径|不在授权范围|禁止访问敏感目录|只读开放范围/.test(error?.message || "");
+      const input = /行号超出范围/.test(error?.message || "");
+      return sendJson(res, denied ? 403 : input ? 400 : 404, {
+        error: denied ? "知识库路径未授权" : input ? "行号无效" : "知识库文件不存在或不可读取",
+      });
+    }
+  }
+  if (method === "GET" && path === "/api/wechat/status") {
     return sendJson(res, 200, wechat ? await wechat.status() : { enabled: false });
   }
   if (method === "GET" && path === "/api/info") {
