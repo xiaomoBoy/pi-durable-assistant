@@ -1,146 +1,127 @@
-# Pi Durable 小助手（v3）
+# Pi Durable Assistant
 
-基于 [Pi Durable](https://earendil.com/posts/pi-durable/) 的**网页版、单用户个人 Agent**。不只是聊天：它可以持久执行任务、维护记事本、派出独立子 Agent、定时执行、在进程崩溃后恢复，并在界面里查看和管理这些工作。
+**可自托管的持久化 AI Agent（Durable AI Assistant）**：基于 [Pi Durable](https://github.com/earendil-works/pi) 构建，支持进程崩溃后恢复任务、长期后台执行、Subagents、多会话 Web UI、定时任务和可选的微信 iLink 接入。
 
-项目既保留用于文章/录屏的演示模式，也提供可长期试用的「任务中心」。当前依赖固定在 `@earendil-works/pi-durable@1.1.0`，升级 API 前应以实际安装版本为准。
+**Self-hosted AI agent with crash recovery, durable workflows, background subagents, scheduled tasks, SQLite persistence, a browser UI and an optional WeChat bridge.** [English README](README.en.md)
 
-![项目界面](docs/screenshot.png)
+[![Node.js](https://img.shields.io/badge/Node.js-22%2B-43853d?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![CI](https://github.com/xiaomoBoy/pi-durable-assistant/actions/workflows/v3-ci.yml/badge.svg)](https://github.com/xiaomoBoy/pi-durable-assistant/actions/workflows/v3-ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## 目前能做什么
+> **项目状态：个人单用户项目 / 可体验的实验性实现，不是 Pi Durable 官方产品。** 当前 `main` 包含 v3 任务中心、网页附件和微信适配代码；部分知识库、文件审批和可靠通知增强功能仍在独立 PR 中，**未合并到主分支**。生产环境请自行做好 HTTPS、访问控制和 SQLite 备份。
 
-| 功能 | 使用方式 / 行为 |
+![Pi Durable Assistant 网页界面：聊天、任务中心和运行状态](docs/screenshot.png)
+
+## 为什么做这个项目
+
+普通聊天机器人在进程退出后往往丢失正在执行的工作。这个项目把 Pi Durable 的任务、会话和 Document 持久化机制封装为**一个可以打开浏览器实际使用的个人 Agent**。可在任务进行中重启进程，再查看恢复后的执行结果；同时保留 SQLite 中的会话与任务状态。
+
+核心技术：**Pi Durable 1.1.0 / Node.js 22 / SQLite / 原生 JavaScript + SSE / Docker Compose**。不需要前端构建或独立数据库服务。
+
+## 已实现的功能
+
+| 功能 | 当前 `main` 的行为 |
 | --- | --- |
-| **断点恢复** | 任务执行中模拟进程崩溃，重启后从 Durable 检查点继续 |
-| **记事本** | Agent 使用 `todo` / `memo` 维护待办、备忘；分叉会话继承对应历史状态 |
-| **临时提醒** | 让 Agent 执行 `remind_me`，到点投递回会话；任务中心可取消 |
-| **周期计划** | 任务中心新建单次或固定分钟间隔任务；支持暂停、继续、取消 |
-| **前台子 Agent** | `delegate` 派子会话，并等待结果返回 |
-| **后台子 Agent** | `delegate_background` 或任务中心直接创建；主会话无需等待，支持查看、停止和崩溃恢复 |
-| **任务管理** | 右下角「任务中心」查看计划、提醒、后台子 Agent 及其状态 |
-| **可选主动通知** | 向通用 Webhook 或飞书机器人发送事件；见下方通知说明 |
-| **会话导出** | 任务中心导出当前会话的用户与助手文字为 Markdown |
-| **会话分叉与多端同步** | Fork、同一会话多浏览器同步、steer 插话及 follow-up |
-| **任务状态展示** | SSE 推送活动任务树、Token 统计、进程启动次数；吉祥物「小 D」反映运行状态 |
+| Durable Agent / 断点恢复 | 检查点、SQLite 持久化、进程重启后恢复可恢复的任务 |
+| Web UI / 多会话 | 浏览器聊天、多会话、Fork、SSE 状态同步、Token 用量展示 |
+| 前台与后台 Subagents | `delegate` / `delegate_background`，后台任务可查看、停止和恢复 |
+| 计划与提醒 | 一次性或按固定分钟间隔重复的任务；可暂停/恢复/取消 |
+| 持久记事本 | `todo` / `memo`，保存任务笔记 |
+| 网页附件 | 图片 PNG/JPEG/WebP/GIF 和 UTF-8 文本、代码文件（有限制；见使用说明） |
+| 主动通知 | 可选通用 Webhook / 飞书文本机器人；主分支目前为尽力发送 |
+| 微信 iLink | 可选 `wx-bot` 容器，文字与语音转写文字收发；其他媒体不解析 |
+| 导出 | 当前会话用户与助手的可见文字导出为 Markdown |
 
-## 微信 iLink 通道（可选）
+**尚未在 `main` 交付：** Obsidian 只读检索（[PR #4](https://github.com/xiaomoBoy/pi-durable-assistant/pull/4)）、受控工作区及审批（[PR #5](https://github.com/xiaomoBoy/pi-durable-assistant/pull/5)）、持久通知 Outbox（[PR #6](https://github.com/xiaomoBoy/pi-durable-assistant/pull/6)）。PR 的代码和自动化测试不能视为已经部署上线。
 
-现在可以通过独立的 [wx-bot](https://github.com/lawrencewzen/wx-bot) 容器接入微信 ClawBot，将微信文本消息送进 Pi Durable 会话，并将最终回复发回微信。后台子 Agent、计划任务与网页使用同一 Durable Runtime；进程重启后保留会话绑定和未发送消息。默认未启用微信，原有网页版不会受到影响。
+## 3 分钟本地体验（不需要 API Key）
 
-- 部署和扫码步骤：[微信接入手册](docs/WECHAT.md)。
-- 配置 `.env` 中的 `WECHAT_ENABLED=1`、`WECHAT_WEBHOOK_KEY`、`WECHAT_SEND_TOKEN`（两个不同的随机密钥）。
-- `docker compose --profile wechat build`，先 `docker compose up -d pi-durable-assistant`，再 `docker compose --profile wechat run --rm wx-bot --config /etc/wx-bot/config.json login primary`，最后 `docker compose --profile wechat up -d`。
-- 微信消息走独立的 Bearer Auth Webhook，原有管理界面仍使用 Basic Auth。通过 `GET /api/wechat/status` 查看通道状态。
-- 当前只保证文本和语音转写文本链路；媒体附件仅占位提示，不做虚假的“已读取”分析。iLink 消息策略/限流和扫码能否成功需用真实微信验证。发出成功、标记已发送之前发生崩溃可能重复投递。
+需要 **Node.js ≥ 22.13**、npm 和 Git：
 
-## 一、本地启动
-
-需要 **Node.js ≥ 22.13**。先用无需 API Key 的 `faux` 模式确认基础功能：
-
-~~~bash
+```bash
+git clone https://github.com/xiaomoBoy/pi-durable-assistant.git
+cd pi-durable-assistant
 npm ci
 npm run check
-npm test
 LLM_API=faux npm run dev
-~~~
+```
 
-浏览器打开 http://localhost:3000 ，新建会话，右下角点击「任务中心」。`faux` 是固定演示剧本，**不是通用智能模型**。开发脚本在进程退出后会自动重启，方便演示崩溃恢复。
+浏览器访问 **http://127.0.0.1:3000**，创建会话并提交一条消息；打开右下角「任务中心」可以创建计划任务或后台子 Agent。
 
-接入真实模型：
+`faux` 是本地**固定模拟剧本**，只用于体验持久化、UI 和恢复机制；它不是通用 AI 模型，不会根据你的自然语言完成真实研究。完整上手路径见 [快速开始与验收](docs/GETTING_STARTED.md)。
 
-~~~bash
+## 接入真实大模型
+
+```bash
 cp .env.example .env
-# 在 .env 填写 LLM_API、LLM_BASE_URL、LLM_API_KEY、LLM_MODEL
-set -a && . ./.env && set +a
+# 用编辑器填写 .env 的 LLM_API、LLM_BASE_URL、LLM_API_KEY、LLM_MODEL
+set -a
+. ./.env
+set +a
 npm run dev
-~~~
+```
 
-`LLM_API` 支持 `openai-completions`、`openai-responses`、`anthropic-messages`、`faux`。支持自定义兼容接口，但 API/模型兼容性取决于中转服务。不要提交包含真实 Key 的 `.env`。
+支持 `openai-completions`、`openai-responses` 和 `anthropic-messages` API 类型。兼容性取决于实际模型/服务商；模型费用由外部服务商或中转平台收取。请查看 [配置说明](docs/CONFIGURATION.md) 了解环境变量、安全提醒和零配置模式。
 
-## 二、任务中心怎么用
+**不要把 `.env`、API Key、微信会话凭据提交到仓库或截图中。** 如果只是看演示，使用 `LLM_API=faux`，不需要填写密钥。
 
-新建会话后打开「任务中心」，可以直接操作，无需先与模型聊天。
+## Docker / VPS 部署
 
-**1. 创建计划任务。** 输入任务内容、多少分钟后执行、重复间隔。重复间隔填 `0` 表示只执行一次；填 `1440` 代表固定每 1440 分钟重复一次。计划可暂停、恢复、取消，页面显示执行次数和下一次触发时间。
-
-也可以让真实模型调用 `schedule_task({ text, minutesFromNow, everyMinutes? })`；首次延迟支持 0.25～525600 分钟，重复间隔为 0 或 1～525600 分钟。**注意：这是固定时间间隔，不是按时区/夏令时计算的“每天上午 9 点”。** 停机期间错过的重复周期不会全部补跑。
-
-**2. 创建后台子 Agent。** 输入独立任务，例如「研究一个公开网页并汇报」。后台任务与聊天轮次分离，任务中心可以查看子会话、停止任务；完成后结果作为 follow-up 回到主会话。真实模型也可以调用 `delegate_background({ text })`。旧版 `delegate({ task })` 仍然可用，但它会等待子 Agent 完成。
-
-**3. 管理提醒。** `remind_me({ minutes, text })` 由 Agent 创建短期提醒。任务中心可以取消尚未触发的提醒。已进入会话收件箱的提醒可能无法撤销。
-
-**4. 导出。** 「导出当前对话为 Markdown」只包含用户与助手的可见文字；**不包含工具输出、记事本原始 Document 或二进制附件**。
-
-## 三、通知怎么配置
-
-不填 `NOTIFY_WEBHOOK_URL` 时，任务仍可在后台运行，但**网页关闭后不会自动向手机推送**；重新打开原会话才能看到站内结果。
-
-~~~dotenv
-# 目标机器人 / 接收端的 Webhook URL（不要提交到 Git）
-NOTIFY_WEBHOOK_URL=
-# generic 或 feishu
-NOTIFY_WEBHOOK_KIND=generic
-# errors（默认）/ all / off
-NOTIFY_MODE=errors
-~~~
-
-- `errors`：**只推送明确标记失败的后台任务**；正常提醒、计划触发及任务成功不会外推。
-- `all`：推送后台结果、正常提醒、计划触发；若想关掉网页后仍收到提醒，请设置这个值。
-- `off`：关闭通知。
-
-`generic` 提交 JSON `{ id, type, text, failed, at }`，并附带 `X-Pi-Event-ID`；`feishu` 使用飞书机器人文本消息格式。通知属于**尽力投递**，目前没有持久 outbox、失败重试或 exactly-once 保证；接收方可按事件 ID 去重。
-
-## 四、Docker / VPS 部署
-
-~~~bash
+```bash
 cp .env.example .env
-# 必须填写 DEMO_PASSWORD；再填写模型配置和可选通知配置
+# 至少配置强密码 DEMO_PASSWORD 和实际模型信息
 docker compose up -d --build
-docker compose logs -f
-~~~
+docker compose ps
+docker compose logs --tail=100 pi-durable-assistant
+```
 
-默认 Compose 把容器的 3000 端口仅映射到宿主机 `127.0.0.1:3300`，SQLite 存储在 Docker 命名卷。容器以非 root 用户运行，配置了自动重启、只读根文件系统和基本资源限制。
+默认只监听宿主机 `127.0.0.1:3300`，而非公网地址；生产部署应由 HTTPS 反向代理提供外部访问，并保留 HTTP Basic Auth（用户名 `demo`）。请在升级前备份 Docker 数据卷，**不要执行 `docker compose down -v`**。
 
-建议仅通过 **HTTPS + Nginx 反向代理**对外提供服务。身份验证使用 HTTP Basic Auth，用户名固定为 `demo`、密码来自 `DEMO_PASSWORD`。`NODE_ENV=production` 时**没有配置密码会拒绝启动**；在无密码的非生产模式下，Node 服务只监听 `127.0.0.1`。
+按顺序阅读 [部署与备份注意事项](docs/DEPLOYMENT.md) 和 [故障排查](docs/TROUBLESHOOTING.md)。若需要微信扫码，参见 [微信 iLink 接入](docs/WECHAT.md)，通过 `--profile wechat` 启动第二个容器。
 
-Nginx 的 SSE 配置示例：
+## 常用操作和能力边界
 
-~~~nginx
-location / {
-    proxy_pass http://127.0.0.1:3300;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_buffering off;
-    proxy_read_timeout 1h;
-}
-~~~
+**持久计划任务：** 在任务中心填写任务内容、首次延迟分钟数和重复间隔；`0` 表示单次执行，`1440` 表示每隔 24 小时。**这不是按时区/夏令时校准的每天某时 Cron**。关闭浏览器不会结束后台任务，但没有配置通知渠道就不会主动发手机消息。
 
-生产模式默认禁止 `POST /api/crash`。只有确实需要录制崩溃恢复演示时才临时设置 `ENABLE_CRASH_DEMO=1`，录制完立刻关闭。**不要用 `docker compose down -v` 更新版本**：`-v` 会删除持久化数据卷。更新前应备份 SQLite 数据卷。
+**后台子 Agent：** 在任务中心提交独立任务，回到主会话后可继续聊天，完成时自动报告结果；也可以用 `delegate_background` 工具。前台 `delegate` 则会等待子 Agent 完成。
 
-## 五、测试与代码结构
+**附件：** 网页单次最多 5 个；单张图片最多 5 MiB，文本文件最多 200 KiB，总量最多 10 MiB。支持网页端图片与 UTF-8 文本/代码文件；微信图片、视频和文件**暂不具备真实解析能力**。附件内容仍通过模型请求传输，请不要上传不希望发送给模型服务商的敏感数据。
 
-~~~bash
+**通知：** `NOTIFY_MODE=errors|all|off`；`errors` 只发明确失败的后台任务通知，`all` 才包含提醒和成功结果。当前主分支的通用 Webhook/飞书投递是**尽力而为**；网络故障可能丢消息。微信另有独立持久发送队列。详细配置见 [配置说明](docs/CONFIGURATION.md)。
+
+## 文档导航
+
+| 想做什么 | 阅读 |
+| --- | --- |
+| 直接跑起来并确认功能正常 | [快速开始与验收](docs/GETTING_STARTED.md) |
+| 查看所有 `.env` 项和模型/API 接法 | [配置说明](docs/CONFIGURATION.md) |
+| 在 Docker / VPS 上运行及保护数据 | [部署与备份注意事项](docs/DEPLOYMENT.md) |
+| 扫码连接微信、处理 iLink 问题 | [微信接入手册](docs/WECHAT.md) |
+| 处理启动失败、权限、模型与消息问题 | [故障排查](docs/TROUBLESHOOTING.md) |
+| 理解 v3 Durable 任务架构与 API | [v3 设计与验收记录](docs/V3_PLAN.md) |
+| 了解正在规划的知识库能力 | [v4 功能需求](docs/KNOWLEDGE_FEATURE_REQUIREMENTS.md) |
+| 提升 GitHub 站内搜索与项目展示 | [GitHub Discoverability / SEO 清单](docs/GITHUB_DISCOVERABILITY.md) |
+| 项目架构与历史设计说明 | [SPEC.md](SPEC.md) |
+
+## 技术结构
+
+- `server.mjs`：HTTP API、鉴权、SSE、静态文件与消息处理。
+- `lib/agent.mjs`：Pi Durable Harness、模型与 Agent 工具。
+- `lib/v3.mjs`：周期任务、后台 Subagent、管理命令和可选通知。
+- `lib/attachments.mjs`：网页图片/文本附件的校验与转换。
+- `lib/wechat.mjs`：微信通道的会话绑定和消息持久化。
+- `public/index.html` + `public/app.js` + `public/style.css`：浏览器聊天 UI。
+- `public/v3.js`：任务中心抽屉，不需要前端打包工具。
+- `tests/`：Node 测试、HTTP 集成、模拟断点恢复和微信通道回归。
+
+```bash
 npm ci
 npm run check
 npm test
-~~~
+```
 
-第一阶段合并前，GitHub Actions 完成了语法检查和 **8 项测试**，包括任务管理、请求校验、生产鉴权、任务取消以及使用 `faux` 模式模拟的进程重启恢复。这不等同于真实 LLM、浏览器及 VPS 环境的全量端到端验收。
-
-- `server.mjs`：HTTP API、鉴权与 SSE 推送。
-- `lib/agent.mjs`：模型配置、提醒、记事本、原有子 Agent 与 Harness。
-- `lib/v3.mjs`：周期任务、后台子 Agent、任务管理和 Webhook。
-- `lib/v3-utils.mjs`：任务时间、幂等键等纯函数。
-- `lib/net.mjs`：防 SSRF 的公开网页抓取。
-- `public/index.html`：原有聊天界面及状态展示。
-- `public/v3.js`：独立的任务中心交互脚本。
-- `tests/`：单元测试和 HTTP 回归测试。
-- `SPEC.md`：架构与版本规格。
-- `docs/V3_PLAN.md`：v3 验收、修复记录和第二阶段待办。
-
-## 六、目前的限制
-
-这是单用户项目，不具备多租户隔离。取消任务与消息投递之间仍可能出现竞态，已经投递到会话 inbox 的消息无法撤销。通知尚无持久重试队列；完整的 Cron/时区、模型成本核算、长会话增量 SSE 与文件成果管理留待下一阶段。公网部署前需自行做 HTTPS、Docker 持久卷备份及真实环境验证。
+CI 使用本地 `faux` 模型和模拟通道，不等于真实微信扫码、生产模型、真实浏览器和 VPS 的端到端验收。若要反馈问题，请附操作系统、Node/Docker 版本、复现步骤及**已脱敏**的错误日志。
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)。本项目并非 Pi Durable、微信或任何模型服务商的官方发行版。
