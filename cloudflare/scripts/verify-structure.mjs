@@ -27,7 +27,7 @@ assert.ok(html.includes('class="app-layout"'));
 assert.ok(html.includes('class="sidebar-left"'));
 assert.ok(html.includes('class="chat-column"'));
 assert.ok(html.includes('class="sidebar-right"'));
-for (const id of new Set([...browser.matchAll(/\\$\\(['"]([^'"]+)['"]\\)/g)].map((item) => item[1]))) {
+for (const id of new Set([...browser.matchAll(/\$\(['"]([^'"]+)['"]\)/g)].map((item) => item[1]))) {
   assert.ok(html.includes('id="' + id + '"'), 'Missing UI element: ' + id);
 }
 assert.ok(originalUi.includes('.conversation-item') && originalUi.includes('.assistant-bubble'));
