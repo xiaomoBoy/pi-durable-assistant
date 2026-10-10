@@ -14,6 +14,7 @@ const startedAt = new Date().toISOString();
 const actionService = new ActionService({ root, harness, context: ctx, workspace });
 actionService.start();
 const notifications = new NotificationService({ root, harness, context: ctx });
+notifications.config(); // 配置有误时启动即失败，而不是悄悄跳过通知发送
 notifications.start();
 const wechatEnabled = process.env.WECHAT_ENABLED === "1";
 if (wechatEnabled && (!process.env.WECHAT_WEBHOOK_KEY || !process.env.WECHAT_SEND_TOKEN)) {
