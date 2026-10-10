@@ -1,0 +1,18 @@
+{
+  "state_dir": "/state",
+  "media_dir": "/media",
+  "local_api": {
+    "listen": "127.0.0.1:18790",
+    "token": "env:WECHAT_SEND_TOKEN"
+  },
+  "bindings": [
+    {
+      "name": "primary",
+      "webhook": {
+        "url": "http://127.0.0.1:3000/channels/wechat/incoming",
+        "key": "env:WECHAT_WEBHOOK_KEY"
+      },
+      "allow_wxids": []
+    }
+  ]
+}

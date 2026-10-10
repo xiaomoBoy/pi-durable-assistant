@@ -22,6 +22,16 @@
 | **会话分叉与多端同步** | Fork、同一会话多浏览器同步、steer 插话及 follow-up |
 | **任务状态展示** | SSE 推送活动任务树、Token 统计、进程启动次数；吉祥物「小 D」反映运行状态 |
 
+## 微信 iLink 通道（可选）
+
+现在可以通过独立的 [wx-bot](https://github.com/lawrencewzen/wx-bot) 容器接入微信 ClawBot，将微信文本消息送进 Pi Durable 会话，并将最终回复发回微信。后台子 Agent、计划任务与网页使用同一 Durable Runtime；进程重启后保留会话绑定和未发送消息。默认未启用微信，原有网页版不会受到影响。
+
+- 部署和扫码步骤：[微信接入手册](docs/WECHAT.md)。
+- 配置 `.env` 中的 `WECHAT_ENABLED=1`、`WECHAT_WEBHOOK_KEY`、`WECHAT_SEND_TOKEN`（两个不同的随机密钥）。
+- `docker compose --profile wechat build`，先 `docker compose up -d pi-durable-demo`，再 `docker compose --profile wechat run --rm wx-bot --config /etc/wx-bot/config.json login primary`，最后 `docker compose --profile wechat up -d`。
+- 微信消息走独立的 Bearer Auth Webhook，原有管理界面仍使用 Basic Auth。通过 `GET /api/wechat/status` 查看通道状态。
+- 当前只保证文本和语音转写文本链路；媒体附件仅占位提示，不做虚假的“已读取”分析。iLink 消息策略/限流和扫码能否成功需用真实微信验证。发出成功、标记已发送之前发生崩溃可能重复投递。
+
 ## 一、本地启动
 
 需要 **Node.js ≥ 22.13**。先用无需 API Key 的 `faux` 模式确认基础功能：

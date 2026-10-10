@@ -5,9 +5,20 @@ import { timingSafeEqual } from "node:crypto";
 import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { config, Delegations, Index, Meta, Notes, openAgent, Reminders } from "./lib/agent.mjs";
 import { Schedules, BackgroundJobs, Parents, scheduleInTx, manageScheduleInTx, backgroundInTx } from "./lib/v3.mjs";
+import { WechatChannel } from "./lib/wechat.mjs";
 
 const { harness, root, agentModel, modelLabel } = await openAgent(ctx);
 const startedAt = new Date().toISOString();
+const wechatEnabled = process.env.WECHAT_ENABLED === "1";
+if (wechatEnabled && (!process.env.WECHAT_WEBHOOK_KEY || !process.env.WECHAT_SEND_TOKEN)) {
+  throw new Error("微信启用时必须设置 WECHAT_WEBHOOK_KEY 和 WECHAT_SEND_TOKEN");
+}
+const wechat = wechatEnabled ? new WechatChannel({
+  harness, root, agentModel, indexDoc: Index, context: ctx,
+  sendURL: process.env.WECHAT_SEND_URL || "http://127.0.0.1:18790/v1/send",
+  sendToken: process.env.WECHAT_SEND_TOKEN,
+}) : null;
+if (wechat) await wechat.start();
 // 整个会话库的任务图（每个持久任务的状态），所有 SSE 连接共用一份
 const taskGraph = await harness.taskGraph(ctx);
 const indexHtml = new URL("./public/index.html", import.meta.url);
@@ -74,6 +85,12 @@ function sameOrigin(req) {
 	} catch {
 		return false;
 	}
+}
+
+function secureMatch(given, expected) {
+  const a = Buffer.from(String(given || ""));
+  const b = Buffer.from(String(expected || ""));
+  return a.length === b.length && b.length > 0 && timingSafeEqual(a, b);
 }
 
 async function getConversation(id) {
@@ -242,7 +259,10 @@ async function route(req, res) {
 		res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
 		return res.end(await readFile(new URL("./public/v3.js", import.meta.url)));
 	}
-	if (method === "GET" && path === "/api/info") {
+	if (method === "GET" && path === "/api/wechat/status") {
+    return sendJson(res, 200, wechat ? await wechat.status() : { enabled: false });
+  }
+  if (method === "GET" && path === "/api/info") {
 		const meta = await harness.snapshot(Meta, ctx);
 		return sendJson(res, 200, { model: modelLabel, api: config.api, pid: process.pid, startedAt, boots: meta?.boots ?? 0 });
 	}
@@ -407,6 +427,22 @@ async function route(req, res) {
 }
 
 const server = createServer(async (req, res) => {
+  // 微信 webhook 独立令牌；绝不绕过普通网页/API 的 Basic Auth。
+  if (req.method === "POST" && req.url?.split("?")[0] === "/channels/wechat/incoming") {
+    const bearer = req.headers.authorization || "";
+    if (!wechat || !secureMatch(bearer, "Bearer " + process.env.WECHAT_WEBHOOK_KEY)) {
+      return sendJson(res, 401, { error: "微信通道未启用或令牌不正确" });
+    }
+    try {
+      const result = await wechat.incoming(await readBody(req));
+      return sendJson(res, 202, result);
+    } catch (error) {
+      const isInputError = /不合法|空消息|长度限制|消息体必须|超出长度/.test(error?.message || "");
+      if (!isInputError) console.error("微信入站处理失败：", redact(error?.message || error));
+      exitIfFatal(error);
+      return sendJson(res, isInputError ? 400 : 503, { error: isInputError ? error.message : "微信消息暂未接收，请重试" });
+    }
+  }
 	if (!authorized(req)) {
 		res.writeHead(401, { "www-authenticate": 'Basic realm="pi-durable-demo", charset="UTF-8"' });
 		return res.end("需要口令");

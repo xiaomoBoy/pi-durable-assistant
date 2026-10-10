@@ -21,5 +21,31 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # 需要微信时启用 profile；与 Node 共用网络命名空间，
+  # wx-bot 仍然只监听 127.0.0.1:18790，不开放额外宿主机端口。
+  wx-bot:
+    profiles: ["wechat"]
+    build:
+      context: .
+      dockerfile: deploy/wechat/Dockerfile
+    image: pi-durable-wx-bot:local
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - pi-durable-demo
+    network_mode: "service:pi-durable-demo"
+    volumes:
+      - wx-bot-state:/state
+      - wx-bot-media:/media
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 256m
+    cpus: 0.5
+    security_opt:
+      - no-new-privileges:true
+
 volumes:
+  wx-bot-state:
+  wx-bot-media:
   pi-durable-demo-data:
