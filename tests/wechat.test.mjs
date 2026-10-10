@@ -13,6 +13,7 @@ test("微信入站验证与幂等键", () => {
   assert.throws(() => validateInbound({ ...input, binding: "../bad" }), /binding/);
   assert.throws(() => validateInbound({ ...input, from_wxid: "" }), /from_wxid/);
   assert.throws(() => validateInbound(null), /对象/);
+  assert.equal(validateInbound({ binding: "primary", from_wxid: "u", message_id: "9" }).ignored, true);
 });
 
 test("语音转写和附件降级不假装能读取媒体", () => {

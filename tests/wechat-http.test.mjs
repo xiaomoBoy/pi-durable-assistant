@@ -80,6 +80,9 @@ test("微信通道鉴权、幂等、会话持久化和自动回复", { timeout: 
     const duplicate = await post("Bearer test-webhook-secret");
     assert.equal(duplicate.status, 202);
     assert.equal((await duplicate.json()).conversationId, conversationId);
+    const emptyEvent = await post("Bearer test-webhook-secret", { ...input, message_id: "9882", text: "" });
+    assert.equal(emptyEvent.status, 202);
+    assert.equal((await emptyEvent.json()).ignored, true);
     const basic = "Basic " + Buffer.from("demo:testpassword").toString("base64");
     const status = await (await fetch(app.origin + "/api/wechat/status", { headers: { authorization: basic } })).json();
     assert.equal(status.bindings.length, 1);
