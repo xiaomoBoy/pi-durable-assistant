@@ -32,4 +32,6 @@ jobs:
           go test ./...
           CGO_ENABLED=0 go build -trimpath -o /tmp/wx-bot-bin ./cmd/wx-bot
       - name: Compose syntax
-        run: docker compose --profile wechat config --quiet
+        run: |
+          cp .env.example .env
+          docker compose --profile wechat config --quiet
