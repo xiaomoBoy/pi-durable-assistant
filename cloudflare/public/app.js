@@ -7,7 +7,7 @@ let currentModel = { api: 'faux', hasKey: false };
 $('token').value = token;
 $('selfcheck').disabled = !token;
 
-function feedback(message) { $('feedback').textContent = message; }
+function feedback(message) { $('feedback').textContent = message; if ($('auth-modal').hidden) notify(message); }
 function element(tag, className, text) {
   const node = document.createElement(tag);
   node.className = className || '';
