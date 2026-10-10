@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer as netServer } from "node:net";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const auth = { authorization: "Basic " + Buffer.from("demo:acceptance-password").toString("base64") };
@@ -82,6 +82,57 @@ test("完整审批流程：未批准不写入、批准后写入、鉴权、崩�
     assert.equal(recovered.state, "done");
     assert.equal(recovered.attempts, 1);
     assert.equal((await readFile(join(ws, path), "utf8")), "# 审批后才能落盘");
+  } finally {
+    if (app) await stop(app.proc);
+    await rm(db, { recursive: true, force: true });
+    await rm(ws, { recursive: true, force: true });
+  }
+});
+
+test("失败写入保留审批原文，人工重试后成功，而不擅自覆盖已有文件", { timeout: 24000 }, async () => {
+  const db = await mkdtemp(join(tmpdir(), "pi-action-retry-db-"));
+  const ws = await mkdtemp(join(tmpdir(), "pi-action-retry-ws-"));
+  const n = await port();
+  let app;
+  try {
+    const existingPath = join(ws, "conflict.md");
+    await writeFile(existingPath, "已有数据");
+    app = await launch(n, db, ws);
+    const post = async (path, body) => fetch(app.origin + path, {
+      method: "POST", headers: { ...auth, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const result = await post("/api/foundation/actions", {
+      path: "conflict.md", content: "原批准内容必须能重试", requestId: "conflict-1",
+    });
+    assert.equal(result.status, 201);
+    const id = (await result.json()).action.id;
+    assert.equal((await post("/api/foundation/actions/" + id + "/approve", {})).status, 200);
+    let item;
+    for (let i = 0; i < 35; i++) {
+      item = (await (await fetch(app.origin + "/api/foundation/actions/" + id, { headers: auth })).json()).action;
+      if (item.state === "failed") break;
+      await pause(150);
+    }
+    assert.equal(item.state, "failed");
+    assert.equal(item.content, "原批准内容必须能重试", "失败时不得丢失用户已审核的正文");
+    assert.equal(await readFile(existingPath, "utf8"), "已有数据");
+    await stop(app.proc);
+    app = await launch(n, db, ws);
+    const recovery = (await (await fetch(app.origin + "/api/foundation/actions/" + id, { headers: auth })).json()).action;
+    assert.equal(recovery.state, "failed");
+    assert.equal(recovery.content, "原批准内容必须能重试");
+    await rm(existingPath);
+    const again = await post("/api/foundation/actions/" + id + "/retry", {});
+    assert.equal(again.status, 200);
+    for (let i = 0; i < 35; i++) {
+      item = (await (await fetch(app.origin + "/api/foundation/actions/" + id, { headers: auth })).json()).action;
+      if (item.state === "done") break;
+      await pause(150);
+    }
+    assert.equal(item.state, "done");
+    assert.equal(await readFile(existingPath, "utf8"), "原批准内容必须能重试");
+    assert.equal(item.content, "", "成功交付后不在审批记录中重复保存全文");
   } finally {
     if (app) await stop(app.proc);
     await rm(db, { recursive: true, force: true });

@@ -81,11 +81,13 @@
     try {
       const [data, actionData, fileData, notifyData, notifyStatus] = await Promise.all([
         request("/api/conversations/" + id + "/management"),
-        request("/api/foundation/actions"),
+        // 可选功能宕机时仍可操作计划任务、提醒和子 Agent。
+        request("/api/foundation/actions").catch(() => ({ actions: [], unavailable: true })),
         request("/api/foundation/status").then(x => x.workspace.enabled ?
-          request("/api/workspace/files") : { files: [] }),
-        request("/api/notifications"),
-        request("/api/notifications/status"),
+          request("/api/workspace/files") : { files: [] })
+          .catch(() => ({ files: [], unavailable: true })),
+        request("/api/notifications").catch(() => ({ items: [], unavailable: true })),
+        request("/api/notifications/status").catch(() => ({ enabled: false, counts: {}, unavailable: true })),
       ]);
       if (sequence !== latestRefresh || currentId() !== id || panel.hidden) return;
       const schedules = $("v3-schedules"); schedules.replaceChildren();
@@ -122,10 +124,10 @@
       if (!background.childElementCount) background.append(el("p", "暂无后台任务", "v3-muted"));
 
       const approvals = $("v3-approvals"); approvals.replaceChildren();
-      for (const item of (actionData.actions || []).filter(x => x.state === "pending").slice(-15).reverse()) {
+      for (const item of (actionData.actions || []).filter(x => x.state === "pending" || x.state === "failed").slice(-15).reverse()) {
         const row = el("div", "", "v3-row");
         row.append(el("p", item.name), el("p", item.bytes + " 字节 · " + (item.overwrite ? "请求覆盖" : "新增文件"), "v3-muted"));
-        addButton(row, "查看内容并决定", async () => {
+        addButton(row, item.state === "failed" ? "查看失败并重试" : "查看内容并决定", async () => {
           try {
             const data = await request("/api/foundation/actions/" + item.id);
             const detail = data.action;
@@ -134,18 +136,25 @@
             row.append(preview);
             if (!row.querySelector(".v3-decision")) {
               const actions = el("div", "", "v3-actions v3-decision");
-              addButton(actions, "批准写入", () => {
-                if (!confirm("确认将文件写入工作区：" + detail.name + "？")) return;
-                run(() => request("/api/foundation/actions/" + item.id + "/approve", {}));
-              });
-              addButton(actions, "拒绝", () => run(() => request("/api/foundation/actions/" + item.id + "/reject", {})));
+              if (detail.state === "failed") {
+                addButton(actions, "重试原批准内容", () => {
+                  if (!confirm("确认重试之前已批准的文件：" + detail.name + "？")) return;
+                  run(() => request("/api/foundation/actions/" + item.id + "/retry", {}));
+                });
+              } else {
+                addButton(actions, "批准写入", () => {
+                  if (!confirm("确认将文件写入工作区：" + detail.name + "？")) return;
+                  run(() => request("/api/foundation/actions/" + item.id + "/approve", {}));
+                });
+                addButton(actions, "拒绝", () => run(() => request("/api/foundation/actions/" + item.id + "/reject", {})));
+              }
               row.append(actions);
             }
           } catch (e) { say("审批读取失败：" + e.message); }
         });
         approvals.append(row);
       }
-      if (!approvals.childElementCount) approvals.append(el("p", "暂无待审批写入", "v3-muted"));
+      if (!approvals.childElementCount) approvals.append(el("p", actionData.unavailable ? "审批服务暂不可用，任务管理不受影响" : "暂无待审批或失败的写入", "v3-muted"));
       const files = $("v3-files"); files.replaceChildren();
       for (const name of (fileData.files || []).slice(0, 40)) {
         const row = el("div", "", "v3-row");
@@ -155,10 +164,10 @@
         });
         files.append(row);
       }
-      if (!files.childElementCount) files.append(el("p", "暂无工作区文件，或尚未启用工作区", "v3-muted"));
+      if (!files.childElementCount) files.append(el("p", fileData.unavailable ? "文件服务暂不可用，任务管理不受影响" : "暂无工作区文件，或尚未启用工作区", "v3-muted"));
 
       const states = notifyStatus.counts || {};
-      $("v3-notification-status").textContent = (notifyStatus.enabled ? "发送已开启" : "发送未开启") +
+      $("v3-notification-status").textContent = (notifyStatus.unavailable ? "通知状态暂不可用" : notifyStatus.enabled ? "发送已开启" : "发送未开启") +
         " · 待发 " + (states.pending || 0) + " · 发送中 " + (states.sending || 0) +
         " · 成功 " + (states.sent || 0) + " · 已阻断 " + (states.blocked || 0);
       const notifications = $("v3-notifications"); notifications.replaceChildren();
@@ -171,7 +180,7 @@
           run(() => request("/api/notifications/retry", { id: item.id })));
         notifications.append(row);
       }
-      if (!notifications.childElementCount) notifications.append(el("p", "暂无通知记录", "v3-muted"));
+      if (!notifications.childElementCount) notifications.append(el("p", notifyData.unavailable ? "通知队列暂不可用，任务管理不受影响" : "暂无通知记录", "v3-muted"));
     } catch (e) { if (sequence === latestRefresh && currentId() === id && !panel.hidden) say("读取任务失败：" + e.message); }
   }
   function open(state) {

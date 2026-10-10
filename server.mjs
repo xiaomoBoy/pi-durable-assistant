@@ -292,7 +292,7 @@ async function route(req, res) {
   if (method === "GET" && path === "/api/foundation/actions") {
     return sendJson(res, 200, { actions: await actionService.list() });
   }
-  const actionRoute = path.match(new RegExp("^/api/foundation/actions/([0-9a-f-]+)(?:/(approve|reject))?$"));
+  const actionRoute = path.match(new RegExp("^/api/foundation/actions/([0-9a-f-]+)(?:/(approve|reject|retry))?$"));
   if (actionRoute) {
     const [, id, decision] = actionRoute;
     if (method === "GET" && !decision) {
@@ -301,7 +301,7 @@ async function route(req, res) {
     }
     if (method === "POST" && decision) {
       try {
-        const item = await actionService.decide(id, decision);
+        const item = decision === "retry" ? await actionService.retry(id) : await actionService.decide(id, decision);
         return sendJson(res, 200, { item });
       } catch (error) { throw new HttpError(/不存在/.test(error.message) ? 404 : 409, error.message); }
     }

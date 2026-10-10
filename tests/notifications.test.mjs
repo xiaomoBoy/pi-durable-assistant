@@ -127,3 +127,22 @@ test("暂停发送不删除 backlog，历史清理不删失败/待发事件", as
   pruneOutbox(store, now);
   assert.deepEqual(store.items.map(x => x.id), ["background:pause"]);
 });
+
+test("飞书 HTTP 200 仍需检查业务 code；非 0 不能误判送达", async () => {
+  let now = 1_000_000;
+  let valid = false;
+  const { tx, store, service } = fakeDurable(() => now);
+  const env = { NOTIFY_MODE: "all", NOTIFY_WEBHOOK_KIND: "feishu",
+    NOTIFY_WEBHOOK_URL: "https://example.invalid/feishu" };
+  await queueNotificationInTx(tx, evt("background:feishu-code"), notificationSettings(env), now);
+  const worker = service({ env, random: () => 0.5, fetchImpl: async () => ({
+    ok: true, status: 200, json: async () => valid ? { code: 0 } : { code: 19021, msg: "business error" },
+  }) });
+  await worker.tick();
+  assert.equal(store.items[0].state, "pending", "飞书 code 非零时不能记为 sent");
+  assert.equal(store.items[0].lastStatus, 503);
+  valid = true;
+  now += 2000;
+  await worker.tick();
+  assert.equal(store.items[0].state, "sent");
+});
