@@ -30,6 +30,7 @@
     '<h3>后台子 Agent</h3><div id="v3-background"></div>',
     '<h3>文件写入审批</h3><p class="v3-muted">仅批准可写工作区内的文件，绝不执行命令。审批前先查看完整内容。</p><div id="v3-approvals"></div>',
     '<h3>工作区文件</h3><div id="v3-files"></div>',
+    '<h3>通知投递</h3><p class="v3-muted" id="v3-notification-status">读取通知状态中…</p><div id="v3-notifications"></div>',
     '<p class="v3-muted">执行采用持久化检查点；周期按固定分钟间隔重复。修改与暂停不会自动清理旧的睡眠任务，但会阻止其过期触发。</p>',
   ].join("");
   document.body.append(toggle, panel);
@@ -78,11 +79,13 @@
     $("v3-export").disabled = !id;
     if (!id || panel.hidden) return;
     try {
-      const [data, actionData, fileData] = await Promise.all([
+      const [data, actionData, fileData, notifyData, notifyStatus] = await Promise.all([
         request("/api/conversations/" + id + "/management"),
         request("/api/foundation/actions"),
         request("/api/foundation/status").then(x => x.workspace.enabled ?
           request("/api/workspace/files") : { files: [] }),
+        request("/api/notifications"),
+        request("/api/notifications/status"),
       ]);
       if (sequence !== latestRefresh || currentId() !== id || panel.hidden) return;
       const schedules = $("v3-schedules"); schedules.replaceChildren();
@@ -153,6 +156,22 @@
         files.append(row);
       }
       if (!files.childElementCount) files.append(el("p", "暂无工作区文件，或尚未启用工作区", "v3-muted"));
+
+      const states = notifyStatus.counts || {};
+      $("v3-notification-status").textContent = (notifyStatus.enabled ? "发送已开启" : "发送未开启") +
+        " · 待发 " + (states.pending || 0) + " · 发送中 " + (states.sending || 0) +
+        " · 成功 " + (states.sent || 0) + " · 已阻断 " + (states.blocked || 0);
+      const notifications = $("v3-notifications"); notifications.replaceChildren();
+      for (const item of (notifyData.items || []).slice(0, 20)) {
+        const row = el("div", "", "v3-row");
+        row.append(el("p", item.type + " · " + item.id),
+          el("p", item.state + " · 已尝试 " + item.attempts + " 次", "v3-muted"));
+        if (item.lastError) row.append(el("p", item.lastError, "v3-muted"));
+        if (item.state === "blocked") addButton(row, "手动重试", () =>
+          run(() => request("/api/notifications/retry", { id: item.id })));
+        notifications.append(row);
+      }
+      if (!notifications.childElementCount) notifications.append(el("p", "暂无通知记录", "v3-muted"));
     } catch (e) { if (sequence === latestRefresh && currentId() === id && !panel.hidden) say("读取任务失败：" + e.message); }
   }
   function open(state) {

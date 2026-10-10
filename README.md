@@ -43,7 +43,7 @@ WORKSPACE_ROOT=/workspace
 
 Docker Compose 会创建独立命名卷 `pi-durable-demo-workspace`，**不要**用 Obsidian、VPS 主目录、SSH 或密钥目录替换这个挂载。文件只支持 md、txt、json、csv，单文件最多 128KB；Agent 可以列出和读取，但写入只生成待审批请求，必须在网页右下角「任务中心 → 文件写入审批」完整查看并批准后才会落盘。拒绝路径穿越和符号链接，**没有提供 shell 执行**。
 
-查看 `GET /api/foundation/status`、`/api/foundation/actions`；文件下载从 `GET /api/workspace/download?name=...` 获取，仍使用现有 Basic Auth。离线复测见 [六项基座加固计划](docs/FOUNDATION_ROADMAP.md)。外部通知可靠 Outbox、完整 Artifact 元数据、模型成本及备份恢复仍属于后续独立阶段，不能因本项完成而认为已实现。
+查看 `GET /api/foundation/status`、`/api/foundation/actions`；文件下载从 `GET /api/workspace/download?name=...` 获取，仍使用现有 Basic Auth。离线复测见 [六项基座加固计划](docs/FOUNDATION_ROADMAP.md)。完整 Artifact 元数据、模型成本及备份恢复仍属于后续独立阶段，不能因本项完成而认为已实现。
 
 ## 一、本地启动
 
@@ -100,7 +100,7 @@ NOTIFY_MODE=errors
 - `all`：推送后台结果、正常提醒、计划触发；若想关掉网页后仍收到提醒，请设置这个值。
 - `off`：关闭通知。
 
-`generic` 提交 JSON `{ id, type, text, failed, at }`，并附带 `X-Pi-Event-ID`；`feishu` 使用飞书机器人文本消息格式。通知属于**尽力投递**，目前没有持久 outbox、失败重试或 exactly-once 保证；接收方可按事件 ID 去重。
+`generic` 提交 JSON `{ id, type, text, failed, at }`，并附带 `X-Pi-Event-ID`；`feishu` 使用飞书机器人文本消息格式。**F3 已增加持久 Outbox**：任务完成事务中同时入队、发送失败自动重试、明确失败暂停、任务中心可手动重投；通知状态支持 `GET /api/notifications/status` 和 `GET /api/notifications`。**仍不保证第三方恰好收到一次**，接收方可按事件 ID 去重。生产默认要求 HTTPS；确需 HTTP 时显式设置 `NOTIFY_ALLOW_HTTP=1`。详情见 [F3 验收手册](docs/FOUNDATION_F3_ACCEPTANCE.md)。
 
 ## 四、Docker / VPS 部署
 
@@ -141,7 +141,8 @@ npm test
 
 - `server.mjs`：HTTP API、鉴权与 SSE 推送。
 - `lib/agent.mjs`：模型配置、提醒、记事本、原有子 Agent 与 Harness。
-- `lib/v3.mjs`：周期任务、后台子 Agent、任务管理和 Webhook。
+- `lib/v3.mjs`：周期任务、后台子 Agent、任务管理及持久通知事件入队。
+- `lib/notifications.mjs`：通用 Webhook / 飞书的 Durable Outbox、可恢复发送器及重试管理。
 - `lib/v3-utils.mjs`：任务时间、幂等键等纯函数。
 - `lib/net.mjs`：防 SSRF 的公开网页抓取。
 - `public/index.html`：原有聊天界面及状态展示。
@@ -152,7 +153,7 @@ npm test
 
 ## 六、目前的限制
 
-这是单用户项目，不具备多租户隔离。取消任务与消息投递之间仍可能出现竞态，已经投递到会话 inbox 的消息无法撤销。通知尚无持久重试队列；完整的 Cron/时区、模型成本核算、长会话增量 SSE 与文件成果管理留待下一阶段。公网部署前需自行做 HTTPS、Docker 持久卷备份及真实环境验证。
+这是单用户项目，不具备多租户隔离。取消任务与消息投递之间仍可能出现竞态，已经投递到会话 inbox 的消息无法撤销。通知已支持本地持久重试但无法保证第三方恰好收到一次；完整的 Cron/时区、模型成本核算、长会话增量 SSE 与文件成果管理留待下一阶段。公网部署前需自行做 HTTPS、Docker 持久卷备份及真实环境验证。
 
 ## 许可证
 

@@ -7,11 +7,14 @@ import { config, Delegations, Index, Meta, Notes, openAgent, Reminders, workspac
 import { Schedules, BackgroundJobs, Parents, scheduleInTx, manageScheduleInTx, backgroundInTx } from "./lib/v3.mjs";
 import { WechatChannel } from "./lib/wechat.mjs";
 import { ActionService } from "./lib/actions.mjs";
+import { NotificationService } from "./lib/notifications.mjs";
 
 const { harness, root, agentModel, modelLabel } = await openAgent(ctx);
 const startedAt = new Date().toISOString();
 const actionService = new ActionService({ root, harness, context: ctx, workspace });
 actionService.start();
+const notifications = new NotificationService({ root, harness, context: ctx });
+notifications.start();
 const wechatEnabled = process.env.WECHAT_ENABLED === "1";
 if (wechatEnabled && (!process.env.WECHAT_WEBHOOK_KEY || !process.env.WECHAT_SEND_TOKEN)) {
   throw new Error("微信启用时必须设置 WECHAT_WEBHOOK_KEY 和 WECHAT_SEND_TOKEN");
@@ -262,7 +265,22 @@ async function route(req, res) {
 		res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
 		return res.end(await readFile(new URL("./public/v3.js", import.meta.url)));
 	}
-	if (method === "GET" && path === "/api/foundation/status") {
+	if (method === "GET" && path === "/api/notifications/status") {
+    return sendJson(res, 200, await notifications.status());
+  }
+  if (method === "GET" && path === "/api/notifications") {
+    return sendJson(res, 200, { items: await notifications.list() });
+  }
+  if (method === "POST" && path === "/api/notifications/retry") {
+    const body = await readBody(req);
+    if (typeof body.id !== "string" || !/^[a-zA-Z0-9:_-]{1,160}$/.test(body.id))
+      throw new HttpError(400, "事件 ID 不合法");
+    try { return sendJson(res, 200, { item: await notifications.retry(body.id) }); }
+    catch (error) {
+      throw new HttpError(/不存在/.test(error.message) ? 404 : 409, "通知无法重试：" + error.message);
+    }
+  }
+  if (method === "GET" && path === "/api/foundation/status") {
     return sendJson(res, 200, { workspace: { enabled: workspace.enabled },
       approvals: { pending: (await actionService.list()).filter(x => x.state === "pending").length } });
   }
