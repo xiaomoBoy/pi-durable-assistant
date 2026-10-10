@@ -2,6 +2,16 @@
 
 状态：开发分支 `feat/edge-model-chat-v02`，**待 Cloudflare 真实环境验收**。这是长期维护项目的功能迭代，不是临时 Demo。
 
+## UI 策略：复用原版 Pi Durable Assistant（本分支已实现）
+
+- **沿用原项目的实际页面资产**：`public/style.css` 完整复制到 `cloudflare/public/style.css`，左侧会话栏、中间聊天流和输入框、右侧小 D 吉祥物、任务/提醒卡片的 class 结构与响应式样式来自原项目。
+- **保留小 D 原始 SVG 和状态样式**：`cloudflare/public/mascot.js` 是从原版 `public/app.js` 提取的视觉素材；运行中/空闲时更新状态。
+- **不复制原版 83 KB 的旧 JavaScript**：原 `public/app.js` 依赖 Node HTTP/SSE、多会话、附件等接口。Cloudflare `public/app.js` 只作为最小 API 适配层，复用 UI 但不造一套新框架。
+- **Edge 专属调整集中在 `public/edge.css`**：模型配置弹窗、访问令牌弹窗、单会话说明、持久任务状态和定时提醒。后续改原版设计时可同步样式，而不必维护完全独立的设计。
+- 当前没有实现多会话、归档、Fork、附件、停止任务、人工触发 Worker 崩溃，因此相应原版控件已隐藏/不渲染，**不能仅有按钮而没有 API**。
+- **移动端**继续使用原版 CSS 抽屉模式；菜单和模型弹窗通过 Edge 适配脚本绑定。
+- UI 完整浏览器体验还需要远端部署或真实浏览器回归，CI 的静态 DOM 校验不能替代交互测试。
+
 ## 范围与原则
 
 保持 Workers + SQLite-backed Durable Objects + PiHarness；`faux` 免费演示仍可用。真实大模型通过 Pi AI 的 `createProvider` 接入，**不绕过 Pi Durable 会话和任务提交**。
