@@ -1,37 +1,126 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <meta name="description" content="Pi Durable Edge：复用 Pi Durable Assistant 原版 UI 的 Cloudflare Agent">
   <title>Pi Durable Edge</title>
-  <style>
-    :root{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17212b;background:#f4f5f8}
-    *{box-sizing:border-box}body{margin:0}main{max-width:880px;margin:44px auto;padding:0 18px 48px}
-    .eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;color:#7770b3;text-transform:uppercase}
-    h1{font-size:clamp(26px,4vw,36px);letter-spacing:-.045em;margin:7px 0 10px}p{color:#667080;line-height:1.65;margin:0 0 20px}
-    .panel{background:#fff;border:1px solid #e5e8ee;border-radius:16px;padding:22px;margin:14px 0;box-shadow:0 7px 28px rgba(27,35,52,.035)}
-    h2{font-size:15px;margin:0 0 15px}.muted{color:#6b7483;font-size:13px}.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
-    input,button,select,textarea{font:inherit;border-radius:9px;padding:10px 13px}input,select,textarea{border:1px solid #dadee7;min-width:0;flex:1;background:#fff}textarea{resize:vertical;min-height:82px;width:100%}button{border:1px solid #dedfea;background:#fff;cursor:pointer;color:#253049}button.primary{background:#36334f;color:white;border-color:#36334f}button:disabled{opacity:.5;cursor:not-allowed}
-    .messages{min-height:140px;max-height:310px;overflow-y:auto;padding:4px 0;display:grid;align-content:start;gap:9px}.bubble{padding:12px 14px;border-radius:12px;background:#f2f2f7;font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}.bubble.user{background:#e9edf9}.label{font-size:11px;color:#758095;display:block;margin-bottom:5px}
-    .notice{padding:12px;border:1px dashed #d8d4ea;border-radius:10px;background:#faf9ff;color:#595d75;font-size:13px}
-    form.settings{display:grid;gap:12px}.settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:6px;min-width:0}.field label{font-size:12px;color:#667080;font-weight:600}.field input,.field select{width:100%}.full{grid-column:1/-1}.settings-note{font-size:12px;color:#788397;line-height:1.6}@media(max-width:640px){.settings-grid{grid-template-columns:1fr}}.reminder{padding:10px 0;border-bottom:1px solid #eee;font-size:13px}.reminder:last-child{border:0}.tag{display:inline-block;padding:3px 7px;border-radius:6px;background:#eef3fb;margin-left:6px;font-size:11px}
-    #feedback{margin-top:12px;font-size:13px;color:#6b7483;min-height:20px}code{background:#f0f0f5;padding:1px 4px;border-radius:4px}footer{font-size:12px;color:#89909f;margin-top:20px}
-  </style>
-  <script type="module" src="/app.js"></script>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/edge.css">
+  <script defer src="/app.js"></script>
 </head>
 <body>
-  <main>
-    <div class="eyebrow">PI DURABLE / CLOUDFLARE</div>
-    <h1>Pi Durable Edge</h1>
-    <p>构建在 Cloudflare 上的持久化 Pi Agent。支持 faux 免费测试，以及 OpenAI / Anthropic 兼容模型 API。聊天、提醒和配置保存在 Durable Object。</p>
-    <section class="panel">
-      <h2>访问令牌</h2>
-      <div class="controls"><input id="token" type="password" placeholder="部署时配置的 ACCESS_TOKEN" autocomplete="off"><button id="connect" class="primary">连接</button><button id="selfcheck" disabled>一键功能自检</button></div>
-      <div id="feedback" aria-live="polite">首次使用请填写在 Cloudflare 侧设置的 ACCESS_TOKEN。</div>
-      <div class="muted" id="selfcheck-result" aria-live="polite">连接后可以一键验证对话、幂等提交、持久化和提醒触发（不包含模拟崩溃）。</div>
+  <div id="reconnect-banner" class="reconnect-banner"><div class="reconnect-spinner"></div><span>正在重新连接 Cloudflare…</span></div>
+  <div id="drawer-backdrop" class="drawer-backdrop"></div>
+  <header class="mobile-header">
+    <button type="button" class="mobile-menu-btn" id="btn-mobile-menu" aria-label="打开会话栏">☰</button>
+    <div class="mobile-header-title" id="mobile-current-title">Pi Durable Edge</div>
+    <div class="mobile-actions"><button type="button" class="btn-new-conv" id="btn-mobile-settings">⚙ 模型</button></div>
+  </header>
+  <div class="app-layout">
+    <aside class="sidebar-left" id="sidebar-left">
+      <div class="sidebar-left-header">
+        <div class="brand-wrap"><div class="brand-icon" aria-hidden="true">D</div><span class="brand-title">Pi Durable Edge</span></div>
+        <button type="button" class="btn-new-conv" id="btn-settings">⚙ 模型与 API 设置</button>
+        <div class="edge-nav-caption">会话 · Edge 单用户版</div>
+      </div>
+      <nav class="conversation-list" aria-label="会话列表">
+        <article class="conversation-item active">
+          <button type="button" class="conv-open" id="single-session"><span class="conv-title-row"><span class="conv-title">主会话</span></span><span class="conv-time">持久化到 Cloudflare SQLite</span></button>
+        </article>
+      </nav>
+      <div class="edge-left-footer">
+        <span id="connection-indicator" class="edge-dot"></span>
+        <span id="connection-label">未连接</span>
+        <button type="button" id="btn-auth" class="edge-inline-btn">访问密钥</button>
+      </div>
+    </aside>
+
+    <main class="chat-column">
+      <header class="chat-header">
+        <h2 class="chat-header-title" id="desktop-current-title">主会话</h2>
+        <span class="chat-header-meta" id="desktop-current-meta">Pi Durable Edge · Faux</span>
+      </header>
+      <section class="messages-container" id="messages-container" aria-live="polite">
+        <div class="empty-chat-state"><span class="empty-chat-badge">Pi Durable Edge</span><div class="empty-chat-title">开始对话</div><p class="empty-chat-desc">连接访问密钥后，使用 Faux 模拟模式或在设置中接入 OpenAI / Anthropic。</p></div>
+      </section>
+      <footer class="input-container">
+        <div class="input-controls">
+          <div class="controls-left"><span class="edge-small" id="chat-description">当前使用 Faux 免费测试模式</span></div>
+          <span class="inbox-badge" id="pending">排队中：0 条</span>
+        </div>
+        <div class="input-box-wrapper">
+          <textarea class="chat-textarea" id="prompt" maxlength="4000" placeholder="输入消息…（Enter 发送，Shift+Enter 换行）" rows="1"></textarea>
+          <button type="button" class="btn-send" id="send">发送</button>
+        </div>
+        <div class="edge-chat-toolbar">
+          <button type="button" class="edge-inline-btn" id="refresh">↻ 刷新状态</button>
+          <button type="button" class="edge-inline-btn" id="selfcheck" disabled>一键功能自检（Faux）</button>
+        </div>
+        <div class="edge-small" id="selfcheck-result" aria-live="polite">可验证任务提交、持久化、幂等和到期提醒。真正的进程恢复需单独测试。</div>
+      </footer>
+    </main>
+
+    <aside class="sidebar-right" id="sidebar-right">
+      <!-- 1. 吉祥物小 D 卡片 -->
+      <section class="card mascot-card" id="mascot-card" data-state="idle">
+        <div class="mascot-bubble" id="mascot-bubble">
+          <span id="mascot-text">随时可以开始</span>
+        </div>
+        <div class="mascot-stage">
+          <svg class="mascot-svg" id="mascot-svg" viewBox="0 0 100 100">
+            <!-- 动态生成机器人矢量 -->
+          </svg>
+        </div>
+        <div class="mascot-footer">
+          <span class="mascot-name">Pi Durable Edge</span>
+          <span class="mascot-status-tag" id="mascot-status-tag">空闲中</span>
+        </div>
+      </section>
+
+
+      <section class="card" id="model-card">
+        <div class="card-title">⚙ 模型配置</div>
+        <div class="edge-model-current"><strong id="model-status">Faux · 免费模拟</strong><small>OpenAI / Anthropic / 兼容 API</small></div>
+        <button type="button" class="edge-primary" id="btn-model-open">配置 Base URL / API Key / 模型</button>
+      </section>
+      <section class="card" id="reminders-card">
+        <div class="card-title">⏰ 定时提醒</div>
+        <div class="edge-reminder-form">
+          <input id="reminder-text" maxlength="200" placeholder="提醒内容（如站起来活动）">
+          <div class="edge-inline"><input id="seconds" type="number" min="5" max="3600" value="10" aria-label="延迟秒数"><span>秒后</span><button type="button" class="edge-primary" id="remind">添加提醒</button></div>
+        </div>
+        <div class="reminder-list" id="reminders"><span class="empty-placeholder">暂无提醒</span></div>
+      </section>
+      <section class="card" id="tasks-card">
+        <div class="card-title">⚡ 持久任务</div>
+        <div class="task-tree" id="task-tree"><span class="empty-placeholder">暂无正在运行的任务</span></div>
+      </section>
+      <section class="card" id="status-card">
+        <div class="card-title">⚙ 运行状态</div>
+        <div class="stat-list">
+          <div class="stat-row"><span class="stat-label">模型</span><span class="stat-value" id="stat-model">Faux</span></div>
+          <div class="stat-row"><span class="stat-label">会话</span><span class="stat-value">SQLite-backed Durable Object</span></div>
+          <div class="stat-row"><span class="stat-label">模式</span><span class="stat-value">Workers Free / BYO API</span></div>
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <div class="edge-dialog-backdrop" id="auth-modal" role="presentation" hidden>
+    <section class="edge-dialog edge-auth" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <div class="edge-dialog-head"><h2 id="auth-title">连接 Pi Durable Edge</h2><button type="button" class="edge-close" id="close-auth" aria-label="关闭">×</button></div>
+      <p class="edge-small">输入 Cloudflare 部署时配置的 ACCESS_TOKEN，当前标签页会临时保存凭据。</p>
+      <label class="edge-field-label" for="token">访问密钥</label>
+      <input id="token" type="password" autocomplete="off" placeholder="ACCESS_TOKEN">
+      <div class="edge-actions"><button type="button" class="edge-primary" id="connect">连接</button></div>
+      <p id="feedback" class="edge-small" aria-live="polite">请先输入访问密钥。</p>
     </section>
-    <section class="panel">
-      <h2>模型设置 <span id="model-status" class="tag">faux · 免费模拟</span></h2>
+  </div>
+
+  <div class="edge-dialog-backdrop" id="model-modal" role="presentation" hidden>
+    <section class="edge-dialog" role="dialog" aria-modal="true" aria-labelledby="model-title">
+      <div class="edge-dialog-head"><h2 id="model-title">模型与 API 配置</h2><button type="button" class="edge-close" id="close-model" aria-label="关闭">×</button></div>
       <form class="settings" id="model-form">
         <div class="settings-grid">
           <div class="field"><label for="model-api">接口协议</label>
@@ -54,19 +143,7 @@
         <div id="model-feedback" class="muted" aria-live="polite">连接后读取模型配置。</div>
       </form>
     </section>
-    <section class="panel">
-      <h2>① 聊天 / 持久化任务</h2>
-      <div class="notice" id="chat-description">Faux 模式：发送后执行 12 秒等待，使用固定回复验证任务恢复。切换到真实 API 后，聊天将交由所选模型回答；模型请求可能产生费用。</div>
-      <div class="messages" id="messages" aria-live="polite"></div>
-      <textarea id="prompt" maxlength="4000" rows="3" placeholder="输入聊天内容。Enter 发送，Shift+Enter 换行。"></textarea><div class="controls" style="margin-top:10px"><button id="send" class="primary">发送消息</button><button id="refresh">刷新状态</button></div>
-      <div id="pending" class="muted" style="padding-top:8px"></div>
-    </section>
-    <section class="panel">
-      <h2>② Durable Objects 定时提醒</h2>
-      <div class="controls"><input id="reminder-text" maxlength="200" placeholder="到点后显示的提醒内容"><input id="seconds" type="number" min="5" max="3600" value="10" style="max-width:110px"><button id="remind" class="primary">创建提醒</button></div>
-      <div id="reminders" style="margin-top:12px" class="muted">暂无提醒。</div>
-    </section>
-    <footer>Pi Durable Edge v0.2 · 单用户 · 密钥仅在服务端解密 · 可使用真实模型（费用由 API 提供商收取） · 当前提醒不发送手机通知</footer>
-  </main>
+  </div>
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
 </body>
 </html>
