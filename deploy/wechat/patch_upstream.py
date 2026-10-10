@@ -113,4 +113,31 @@ replace_once("internal/bridge/poller.go",
 \t}
 \treturn p.Webhook.Post(ctx, payload)
 ''')
+# 重定向/中断后不推进游标；下次重放交由 Durable 幂等提交。
+replace_once("internal/bridge/poller.go",
+    '''\t\tif resp.GetUpdatesBuf != "" {
+\t\t\tif err := p.Store.SaveCursor(resp.GetUpdatesBuf); err != nil {''',
+    '''\t\tif ctx.Err() != nil {
+\t\t\treturn
+\t\t}
+\t\tif resp.GetUpdatesBuf != "" {
+\t\t\tif err := p.Store.SaveCursor(resp.GetUpdatesBuf); err != nil {''')
+
+# 原上游的两个测试只等到了 webhook 回调就退出，没有等 poller goroutine 停止。
+# 推迟游标提交以后这会和 t.TempDir 清理竞争；仅补等待，不改变任何断言。
+test_file = root / "internal/bridge/poller_test.go"
+test_source = test_file.read_text()
+for name in ("TestPollerTwoImagesDistinctFiles", "TestPollerHasContextTokenFromCache"):
+    start = test_source.index("func " + name + "(")
+    next_start = test_source.find("\nfunc ", start + 1)
+    end = len(test_source) if next_start < 0 else next_start
+    part = test_source[start:end]
+    if part.count("go p.Run(ctx)") != 1 or "\tcancel()\n" not in part:
+        raise SystemExit(f"{name}: upstream test layout changed")
+    part = part.replace("go p.Run(ctx)",
+        "done := make(chan struct{})\n\tgo func() { p.Run(ctx); close(done) }()", 1)
+    part = part.replace("\tcancel()\n", "\tcancel()\n\t<-done\n", 1)
+    test_source = test_source[:start] + part + test_source[end:]
+test_file.write_text(test_source)
+
 print("wx-bot compatibility and cursor patch applied")
