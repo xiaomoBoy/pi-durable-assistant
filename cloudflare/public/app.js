@@ -3,6 +3,7 @@ let token = sessionStorage.getItem('piEdgeToken') || '';
 let busy = false;
 let polls = 0;
 let pollTimer;
+let currentModel = { api: 'faux', hasKey: false };
 $('token').value = token;
 $('selfcheck').disabled = !token;
 
@@ -29,7 +30,7 @@ function render(state) {
   messages.replaceChildren();
   for (const msg of state.messages || []) {
     const bubble = element('div', 'bubble ' + (msg.role === 'user' ? 'user' : ''), msg.text);
-    bubble.prepend(element('span', 'label', msg.role === 'user' ? '你' : 'Pi Durable · faux'));
+    bubble.prepend(element('span', 'label', msg.role === 'user' ? '你' : 'Pi Durable · ' + (currentModel.api === 'faux' ? 'faux' : currentModel.model || 'AI')));
     messages.append(bubble);
   }
   if (!messages.children.length) messages.append(element('div', 'muted', '尚无聊天记录。'));
@@ -68,11 +69,13 @@ $('connect').addEventListener('click', () => {
   polls = 0;
   $('selfcheck').disabled = !token;
   refresh();
+  loadModelSettings();
 });
 $('refresh').addEventListener('click', () => { polls = 0; refresh(); });
+$('prompt').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); $('send').click(); } });
 $('send').addEventListener('click', async () => {
   if (busy) return;
-  const text = $('prompt').value.trim() || '执行一次 12 秒的 Pi Durable 任务恢复演示';
+  const text = $('prompt').value.trim() || (currentModel.api === 'faux' ? '执行一次 12 秒的 Pi Durable 任务恢复演示' : '你好，请介绍一下你自己。');
   busy = true; $('send').disabled = true;
   try {
     const operationId = crypto.randomUUID();
@@ -94,7 +97,7 @@ $('remind').addEventListener('click', async () => {
     await refresh(true);
   } catch (error) { feedback(error.message); }
 });
-if (token) refresh();
+if (token) { refresh(); loadModelSettings(); }
 
 /**
  * Visible smoke test: creates its own unique chat operation and reminder.
@@ -102,6 +105,7 @@ if (token) refresh();
  */
 $('selfcheck').addEventListener('click', async () => {
   if (!token) return feedback('请先连接 ACCESS_TOKEN。');
+  if (currentModel.api !== 'faux') return feedback('一键模拟自检只能在 Faux 模式运行，请切回 Faux。');
   const control = $('selfcheck');
   control.disabled = true;
   const result = $('selfcheck-result');
@@ -151,4 +155,72 @@ $('selfcheck').addEventListener('click', async () => {
   } finally {
     control.disabled = false;
   }
+});
+
+const modelDefaultUrls = {
+  faux: '', 'openai-completions': 'https://api.openai.com/v1',
+  'openai-responses': 'https://api.openai.com/v1', 'anthropic-messages': 'https://api.anthropic.com',
+};
+function formModelConfig() {
+  return {
+    api: $('model-api').value,
+    baseUrl: $('model-url').value.trim(),
+    model: $('model-id').value.trim(),
+    apiKey: $('model-key').value.trim(),
+    reasoning: $('model-reasoning').checked,
+    contextWindow: Number($('model-context').value),
+    maxTokens: Number($('model-max').value),
+  };
+}
+function renderModelConfig(cfg) {
+  currentModel = cfg;
+  $('model-api').value = cfg.api || 'faux';
+  $('model-id').value = cfg.model || '';
+  $('model-url').value = cfg.baseUrl || modelDefaultUrls[cfg.api] || '';
+  $('model-key').value = '';
+  $('model-key').placeholder = cfg.hasKey ? '已保存加密密钥 · 留空保持不变' : '填写 API Key（首次启用必填）';
+  $('model-context').value = cfg.contextWindow || 128000;
+  $('model-max').value = cfg.maxTokens || 8192;
+  $('model-reasoning').checked = Boolean(cfg.reasoning);
+  $('model-status').textContent = cfg.api === 'faux' ? 'faux · 免费模拟' : cfg.model + ' · ' + cfg.api;
+  $('selfcheck').disabled = !token || cfg.api !== 'faux';
+  $('chat-description').textContent = cfg.api === 'faux'
+    ? 'Faux 模式：任务执行 12 秒等待并返回固定回复，免费验证断点恢复。'
+    : '当前使用 ' + cfg.model + ' 的真实聊天接口。每次提交可能产生模型 API 费用。';
+  $('model-feedback').textContent = cfg.api === 'faux' ? '当前未调用外部模型。' :
+    '当前配置已保存；' + (cfg.hasKey ? 'API Key 已加密保存（不会返回明文）。' : '尚未配置 API Key。');
+}
+async function loadModelSettings() {
+  if (!token) return;
+  try { renderModelConfig(await api('/api/model')); }
+  catch (error) { $('model-feedback').textContent = '载入配置失败：' + error.message; }
+}
+$('model-api').addEventListener('change', () => {
+  const nextApi = $('model-api').value;
+  const url = $('model-url').value.trim();
+  if (!url || Object.values(modelDefaultUrls).includes(url)) {
+    $('model-url').value = modelDefaultUrls[nextApi] || '';
+  }
+  $('model-form').querySelectorAll('input,select').forEach((input) => {
+    if (input.id !== 'model-api') input.disabled = nextApi === 'faux';
+  });
+  if (nextApi !== 'faux') $('model-form').querySelectorAll('input,select').forEach((input) => { input.disabled = false; });
+});
+$('model-reload').addEventListener('click', () => loadModelSettings());
+$('model-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const button = $('model-save');
+  button.disabled = true;
+  try {
+    const config = formModelConfig();
+    if (config.api !== 'faux' && !config.apiKey && !currentModel.hasKey) {
+      throw new Error('首次设置真实模型必须填写 API Key');
+    }
+    const saved = await api('/api/model', { method: 'PUT', body: JSON.stringify(config) });
+    renderModelConfig(saved);
+    polls = 0;
+    $('model-feedback').textContent = '已保存并切换到 ' + (saved.api === 'faux' ? 'Faux 模拟模式' : saved.model) + '；刷新页面后仍然生效。';
+    await refresh(true);
+  } catch (error) { $('model-feedback').textContent = '保存失败：' + error.message; }
+  finally { button.disabled = false; }
 });
