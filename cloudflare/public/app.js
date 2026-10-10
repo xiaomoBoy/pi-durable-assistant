@@ -290,15 +290,15 @@ for (const id of ['model-modal', 'auth-modal']) {
   $(id).addEventListener('click', (event) => { if (event.target === $(id)) closeDialog(id); });
 }
 $('btn-mobile-menu').addEventListener('click', () => {
-  $('sidebar-left').classList.add('is-open');
-  $('drawer-backdrop').classList.add('is-open');
+  $('sidebar-left').classList.add('open');
+  $('drawer-backdrop').classList.add('open');
 });
 $('drawer-backdrop').addEventListener('click', () => {
-  $('sidebar-left').classList.remove('is-open');
-  $('drawer-backdrop').classList.remove('is-open');
+  $('sidebar-left').classList.remove('open');
+  $('drawer-backdrop').classList.remove('open');
 });
 $('single-session').addEventListener('click', () => {
-  $('sidebar-left').classList.remove('is-open');
-  $('drawer-backdrop').classList.remove('is-open');
+  $('sidebar-left').classList.remove('open');
+  $('drawer-backdrop').classList.remove('open');
   $('messages-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
