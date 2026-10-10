@@ -1,0 +1,59 @@
+/* Pi Durable Edge only: reuse public/style.css from upstream without modifying it. */
+.edge-nav-caption,.edge-small { font-size:12px; color:var(--text-muted); line-height:1.5; }
+.edge-nav-caption { padding:3px 2px 0; }
+.edge-left-footer { margin-top:auto; padding:14px 16px; border-top:1px solid var(--border); display:flex; gap:8px; align-items:center; font-size:12px; color:var(--text-muted); flex-wrap:wrap; }
+.edge-dot { width:8px; height:8px; background:var(--warning); border-radius:50%; flex-shrink:0; }
+.edge-dot.connected { background:var(--success); }
+.edge-inline-btn { appearance:none; border:0; background:transparent; color:var(--primary); cursor:pointer; padding:6px 4px; font:inherit; font-weight:600; font-size:12px; }
+.edge-left-footer .edge-inline-btn { margin-left:auto; }
+.edge-primary { background:var(--primary-gradient); color:#fff; border:0; border-radius:var(--radius-sm); padding:10px 14px; font-weight:600; cursor:pointer; font:inherit; font-size:13px; }
+.edge-primary:disabled { opacity:.5; cursor:not-allowed; }
+.edge-model-current { display:flex; flex-direction:column; gap:5px; font-size:13px; overflow-wrap:anywhere; }
+.edge-model-current small { color:var(--text-muted); font-size:12px; }
+.edge-reminder-form { display:flex; flex-direction:column; gap:8px; }
+.edge-reminder-form input,.edge-dialog input,.edge-dialog select { width:100%; background:var(--bg-input); border:1px solid var(--border); color:var(--text-main); border-radius:var(--radius-sm); padding:10px; font:inherit; font-size:13px; min-width:0; }
+.edge-inline { display:flex; gap:8px; align-items:center; }
+.edge-inline input { width:76px; max-width:76px; }
+.edge-inline span { color:var(--text-muted); font-size:12px; white-space:nowrap; flex:1; }
+.edge-reminder-row { padding:8px 0; border-bottom:1px solid var(--border); display:flex; gap:8px; justify-content:space-between; align-items:flex-start; font-size:12px; overflow-wrap:anywhere; }
+.edge-reminder-row:last-child { border-bottom:0; }
+.edge-task-row { background:var(--bg-subtle); border-radius:var(--radius-sm); padding:8px; font-size:12px; overflow-wrap:anywhere; }
+.edge-chat-toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:5px; }
+.edge-chat-toolbar + .edge-small { margin-top:2px; }
+.edge-system-error { border:1px solid var(--danger); border-radius:var(--radius-md); padding:10px 14px; color:var(--danger); font-size:13px; }
+.edge-dialog-backdrop[hidden]{ display:none !important; }
+.edge-dialog-backdrop { position:fixed; inset:0; z-index:5000; background:rgba(7,12,25,.62); display:flex; align-items:center; justify-content:center; padding:12px; }
+.edge-dialog { width:min(610px,100%); max-height:min(88vh,860px); overflow:auto; background:var(--bg-surface); color:var(--text-main); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); padding:20px; }
+.edge-dialog.edge-auth { width:min(430px,100%); }
+.edge-dialog-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:14px; }
+.edge-dialog-head h2 { margin:0; font-size:18px; }
+.edge-close { font-size:24px; background:transparent; color:var(--text-muted); border:0; padding:0 6px; cursor:pointer; }
+.edge-field-label { display:block; color:var(--text-muted); font-size:12px; font-weight:600; margin:12px 0 6px; }
+.edge-actions { display:flex; gap:8px; margin-top:12px; }
+.edge-dialog .settings { display:grid; gap:14px; }
+.edge-dialog .settings-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.edge-dialog .field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.edge-dialog .field label { font-size:12px; font-weight:600; color:var(--text-muted); }
+.edge-dialog .field input,.edge-dialog .field select { flex:none; }
+.edge-dialog .full { grid-column:1 / -1; }
+.edge-dialog .settings-note { color:var(--text-muted); font-size:12px; line-height:1.6; }
+.edge-dialog .controls { display:flex; flex-wrap:wrap; align-items:center; gap:9px; }
+.edge-dialog .controls button { padding:9px 12px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--bg-subtle); color:var(--text-main); cursor:pointer; }
+.edge-dialog .controls .primary { background:var(--primary-gradient); color:#fff; border:0; }
+.edge-dialog #model-reasoning { width:auto; min-width:16px; height:16px; vertical-align:middle; margin-right:6px; }
+.edge-dialog #model-feedback { font-size:12px; color:var(--text-muted); }
+.edge-dialog #feedback { margin:8px 0 0; }
+.edge-dialog input:focus,.edge-dialog select:focus { outline:2px solid var(--border-focus); outline-offset:1px; }
+#messages-container .edge-empty { margin:auto; text-align:center; color:var(--text-muted); padding:20px; }
+#messages-container .edge-message-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+#messages-container .message-row .assistant-bubble { white-space:pre-wrap; }
+#messages-container .message-row .user-bubble { white-space:pre-wrap; }
+#pending { margin-left:auto; }
+#model-status { overflow-wrap:anywhere; }
+@media(max-width:860px) {
+  .edge-left-footer { padding:10px 12px; }
+  .edge-dialog .settings-grid { grid-template-columns:1fr; }
+  .edge-dialog { max-height:92vh; padding:16px; }
+  .sidebar-right { padding-bottom:44px; }
+  .edge-chat-toolbar { margin:4px 0; }
+}
